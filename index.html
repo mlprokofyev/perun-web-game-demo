@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perun — Isometric Pixel Art</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #141620;
+      font-family: monospace;
+    }
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      display: block;
+    }
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #b0a080;
+      font-size: 18px;
+      letter-spacing: 2px;
+    }
+    #hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      color: #d0c8a0;
+      font-size: 13px;
+      line-height: 1.6;
+      pointer-events: none;
+      text-shadow: 1px 1px 2px #000;
+    }
+    #debug-overlay {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      color: #888;
+      font-size: 11px;
+      line-height: 1.5;
+      pointer-events: none;
+      text-shadow: 1px 1px 2px #000;
+    }
+    #controls-hint {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      color: #666;
+      font-size: 11px;
+      line-height: 1.5;
+      pointer-events: none;
+      text-shadow: 1px 1px 2px #000;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="loading">Loading...</div>
+    <div id="hud"></div>
+    <div id="debug-overlay"></div>
+    <div id="controls-hint">
+      WASD / Arrows — move<br>
+      Mouse wheel — zoom<br>
+      Shift — run
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
