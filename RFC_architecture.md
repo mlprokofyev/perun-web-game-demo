@@ -43,6 +43,7 @@
 
 ### Core Technologies
 - **HTML5 Canvas** - 2D rendering context for pixel-perfect graphics
+- **WebGL2** - Post-processing pass for real-time lighting and shadows (GLSL 300 es)
 - **TypeScript/JavaScript** - Main programming language
 - **Webpack/Vite** - Module bundler and dev server
 
@@ -87,7 +88,8 @@
 │   │   └── Config.ts              # Game configuration
 │   │
 │   ├── /rendering
-│   │   ├── Renderer.ts            # Canvas rendering
+│   │   ├── Renderer.ts            # Canvas 2D rendering
+│   │   ├── PostProcessPipeline.ts # WebGL2 lighting & shadow post-process
 │   │   ├── Camera.ts              # Viewport/camera system
 │   │   ├── IsometricUtils.ts     # Coordinate conversions
 │   │   └── SpriteRenderer.ts     # PNG sprite rendering
@@ -671,7 +673,160 @@ Complete manifest file structure for asset loading:
 }
 ```
 
-## 7. Performance Optimization
+## 7. Lighting & Shadow System
+
+### 7.1 Overview
+
+The lighting system is a **WebGL2 post-processing pass** layered on top of the Canvas 2D renderer. It applies per-pixel lighting and soft shadows without modifying the 2D rendering pipeline.
+
+```
+┌──────────────────────────────┐
+│   Canvas 2D (Renderer.ts)    │  ← Tiles, objects, player, fog
+│   Unchanged 2D pipeline      │
+└──────────┬───────────────────┘
+           │ texImage2D (each frame)
+           ▼
+┌──────────────────────────────┐
+│   WebGL2 overlay canvas      │  ← PostProcessPipeline.ts
+│   Fragment shader applies:   │
+│   • Ambient light            │
+│   • Point lights + falloff   │
+│   • Occluder soft shadows    │
+│   • Player height fade       │
+└──────────────────────────────┘
+```
+
+### 7.2 Fragment Shader Pipeline
+
+```
+for each pixel (fragPos):
+    light = ambientColor
+
+    for each point light i:
+        attenuation = 1 − (dist / radius)²        // smooth quadratic falloff
+        flicker     = noise-based modulation        // optional
+
+        shadow = 1.0                                // fully lit
+        for each occluder j:
+            maxReach = occHeight[j] * shadowLenMult  // taller → longer shadow
+            shadow = min(shadow, shadowFactor(fragPos, lightPos, occPos, occRadius, maxReach))
+
+        // Player height fade: reduce shadow from feet (full) to head (reduced)
+        if heightFadeActive and pixel inside player sprite:
+            shadow = mix(shadow, 1.0, hx * hy * strength)
+
+        light += color * intensity * attenuation * flicker * shadow
+
+    finalColor = sceneColor * clamp(light, 0, 1)
+```
+
+### 7.3 Shadow Algorithm
+
+The `shadowFactor()` function tests how much light reaches a fragment through a single circular occluder:
+
+1. **Segment projection** — Project the occluder centre onto the frag→light line segment and find the closest point (clamped to segment bounds).
+2. **Perpendicular penumbra** — Compare perpendicular distance to occluder radius using `smoothstep(r * 0.3, r * 2.0, perpDist)`. The wide range produces soft edges.
+3. **Endpoint fade** — Instead of a hard `t < 0 || t > len` cut-off, a `smoothstep` fade over distance `r` around each endpoint prevents sharp shadow artifacts.
+4. **Height-proportional reach** — Each occluder has a `height` (object's asset height × zoom). The shadow fades out beyond `maxReach = height × SHADOW_LENGTH_MULT`, so tall objects cast long shadows and short objects cast short ones.
+5. **Multi-occluder combination** — Shadows from multiple occluders for the same light combine with `min()` (not multiplication) so overlapping objects don't produce unnaturally dark areas.
+
+#### Complex shadow shapes
+
+Simple objects (trees, stones) use a single `shadowRadius`. Complex objects (houses) define `shadowPoints` — a grid of overlapping circles that approximate the object's silhouette:
+
+```typescript
+shadowPoints: [
+  { dx: -0.4, dy: -0.4, radius: 40 },
+  { dx:  0.0, dy: -0.4, radius: 40 },
+  { dx:  0.4, dy: -0.4, radius: 40 },
+  { dx: -0.4, dy:  0.0, radius: 40 },
+  { dx:  0.0, dy:  0.0, radius: 40 },
+  { dx:  0.4, dy:  0.0, radius: 40 },
+  { dx: -0.4, dy:  0.4, radius: 40 },
+  { dx:  0.0, dy:  0.4, radius: 40 },
+  { dx:  0.4, dy:  0.4, radius: 40 },
+]
+```
+
+Each `dx/dy` is in grid-coordinate offsets from the object's `(col, row)`.
+
+#### Player as shadow caster
+
+The player is also registered as a circular occluder at their visual feet position. `PLAYER_FOOT_OFFSET` shifts the occluder up from the sprite's mathematical bottom to align with the character's actual feet (compensating for transparent padding in the sprite).
+
+### 7.4 Player Height Fade
+
+In pure 2D, a character entering shadow darkens uniformly top-to-bottom. The **height fade** simulates 3D by reducing shadow strength from feet to head within the player sprite bounds:
+
+- **Horizontal containment**: `smoothstep` fades the effect to zero outside the sprite width.
+- **Vertical bell curve**: Effect starts at zero at feet, peaks in the upper body, and fades back to zero above the head — preventing the effect from bleeding upward.
+
+```glsl
+float hx = 1.0 - smoothstep(width * 0.1, width * 0.85, dx);
+float hy = smoothstep(0.0, height * 0.4, dy)
+         * (1.0 - smoothstep(height * 0.85, height * 1.05, dy));
+shadow = mix(shadow, 1.0, hx * hy * strength);
+```
+
+### 7.5 Coordinate Handling
+
+All lighting operates in **screen-space pixels**. Key transformations:
+
+1. `isoToScreen(col, row)` → world pixel position.
+2. `camera.worldToScreen(wx, wy)` → screen pixel position (with pan + zoom).
+3. **Y-flip for WebGL**: Screen coordinates (top = 0) are flipped to GL coordinates (bottom = 0) when setting uniforms: `gl_y = canvasHeight - screen_y`.
+
+### 7.6 Integration in Game Loop (`Game.ts`)
+
+```
+render(dt):
+    ... 2D rendering (tiles, fog, objects, player) ...
+
+    if postProcess.enabled:
+        clearLights / clearOccluders / clearHeightFade
+
+        1. Compute sky light screen position from world offset + camera
+        2. addLight(skyLight)
+        3. setShadowLengthMult(SHADOW_LENGTH_MULT)
+        4. For each world object → addOccluder (position, radius, height)
+        5. addOccluder for player at visual feet (position + PLAYER_FOOT_OFFSET, radius, height)
+        6. Compute player sprite bounds → setHeightFade(footX, footY, width, height, strength)
+        7. postProcess.render(dt)  // upload texture + draw full-screen quad
+```
+
+### 7.7 Configuration Constants
+
+| Constant | Default | Description |
+|---|---|---|
+| `LIGHTING_ENABLED` | `true` | Start with lighting on |
+| `LIGHT_AMBIENT_R/G/B` | 0.18 / 0.22 / 0.38 | Ambient twilight colour |
+| `SKY_LIGHT_OFFSET_X/Y` | −1500 / 1500 | Sky light world-space offset |
+| `SKY_LIGHT_RADIUS` | 3500 | Sky light reach |
+| `SKY_LIGHT_R/G/B` | 0.75 / 0.8 / 1.0 | Sky light colour |
+| `SKY_LIGHT_INTENSITY` | 0.6 | Sky light brightness |
+| `PLAYER_SHADOW_RADIUS` | 15 | Player shadow occluder radius (asset px) |
+| `PLAYER_FOOT_OFFSET` | 18 | Sprite bottom → visual feet offset (asset px) |
+| `SHADOW_LENGTH_MULT` | 2.0 | Shadow reach = object height × this value |
+| `SHADOW_HEIGHT_FADE` | 0.8 | Shadow reduction at player head |
+
+### 7.8 Shader Tuning Guide
+
+| Parameter | File | What it controls |
+|---|---|---|
+| `r * 0.3, r * 2.0` | `PostProcessPipeline.ts` | Penumbra softness (inner → outer) |
+| `smoothstep(-r, r*0.3, t)` | `PostProcessPipeline.ts` | Shadow endpoint fade distance |
+| `u_hfWidth * 0.1 / 0.85` | `PostProcessPipeline.ts` | Height-fade horizontal extent |
+| `u_hfHeight * 0.4 / 0.85 / 1.05` | `PostProcessPipeline.ts` | Height-fade vertical bell shape |
+| Falloff formula `1 − d²/r²` | `PostProcessPipeline.ts` | Light falloff curve (quadratic) |
+| `maxReach * 0.5, maxReach` | `PostProcessPipeline.ts` | Shadow length fade (start/end of reach) |
+
+### 7.9 Limits
+
+- Up to **16 point lights** and **32 occluders** per frame (GLSL array sizes).
+- Occluders are **circular** — non-circular shapes require multiple overlapping circles.
+- Shadows are computed in **screen space** — no depth buffer or true 3D raycasting.
+
+## 8. Performance Optimization
 
 ### 7.1 Culling
 - Only render entities within camera viewport
@@ -687,7 +842,7 @@ Complete manifest file structure for asset loading:
 - Enable `imageSmoothingEnabled = false` for crisp pixels
 - Use `willReadFrequently` hint for getImageData operations
 
-## 8. Save/Load System
+## 9. Save/Load System
 
 ```typescript
 interface SaveData {
@@ -720,7 +875,7 @@ class SaveManager {
 }
 ```
 
-## 9. Development Roadmap
+## 10. Development Roadmap
 
 ### Phase 1: Foundation
 - Set up project structure and build system
@@ -746,14 +901,14 @@ class SaveManager {
 - Debug tools
 - Testing and bug fixes
 
-## 10. Testing Strategy
+## 11. Testing Strategy
 
 - **Unit Tests**: Core systems (coordinate conversion, collision detection)
 - **Integration Tests**: Asset loading, scene management
 - **Performance Tests**: FPS monitoring, memory profiling
 - **Manual Testing**: Gameplay, visual bugs, browser compatibility
 
-## 11. Browser Compatibility
+## 12. Browser Compatibility
 
 Target modern browsers with:
 - Chrome 90+

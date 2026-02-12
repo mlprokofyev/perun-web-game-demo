@@ -44,6 +44,7 @@
       line-height: 1.6;
       pointer-events: none;
       text-shadow: 1px 1px 2px #000;
+      z-index: 10;
     }
     #debug-overlay {
       position: absolute;
@@ -54,6 +55,7 @@
       line-height: 1.5;
       pointer-events: none;
       text-shadow: 1px 1px 2px #000;
+      z-index: 10;
     }
     #controls-hint {
       position: absolute;
@@ -65,6 +67,7 @@
       pointer-events: none;
       text-shadow: 1px 1px 2px #000;
       text-align: right;
+      z-index: 10;
     }
   </style>
 </head>
@@ -76,7 +79,8 @@
     <div id="controls-hint">
       WASD / Arrows — move<br>
       Mouse wheel — zoom<br>
-      Shift — run
+      Shift — run<br>
+      L — toggle lighting
     </div>
   </div>
   <script type="module" src="/src/main.ts"></script>

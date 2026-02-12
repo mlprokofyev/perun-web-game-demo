@@ -17,6 +17,11 @@ export interface WorldObject {
   solidCols?: number;
   /** Grid footprint — how many rows the solid area spans (default 1) */
   solidRows?: number;
+  /** Shadow-casting radius in asset pixels (default: width * 0.15). Set 0 to disable shadow. */
+  shadowRadius?: number;
+  /** Multiple shadow circles for complex shapes (overrides shadowRadius).
+   *  Each entry is { dx, dy } in grid-coordinate offsets from (col, row) + radius in asset px. */
+  shadowPoints?: Array<{ dx: number; dy: number; radius: number }>;
 }
 
 /**

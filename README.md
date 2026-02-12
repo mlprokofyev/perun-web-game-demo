@@ -19,6 +19,7 @@ Open `http://localhost:5173` in your browser.
 | `Shift` (hold) | Run (1.8× speed) |
 | Mouse wheel | Zoom in/out |
 | `G` (hold) | Show debug grid overlay |
+| `L` | Toggle lighting/shadows |
 
 ## Build
 
@@ -50,7 +51,8 @@ npm run preview   # Serve the production build locally
 │   ├── rendering/
 │   │   ├── IsometricUtils.ts      isoToScreen / screenToIso coordinate conversion
 │   │   ├── Camera.ts              Viewport camera with smooth follow & zoom
-│   │   └── Renderer.ts            Canvas renderer — Z-sorting, layers, boundary fog
+│   │   ├── Renderer.ts            Canvas renderer — Z-sorting, layers, boundary fog
+│   │   └── PostProcessPipeline.ts WebGL2 lighting & shadow post-process
 │   ├── entities/
 │   │   ├── Entity.ts              Base entity class (component container)
 │   │   ├── Components.ts          Transform, Velocity, Sprite, Collider components
@@ -96,8 +98,9 @@ Each frame follows this order:
 3. **Draw boundary fog** over tiles (radial vignette + edge gradients)
 4. **Enqueue** static objects + entities → **flush object layer**
 5. **Debug overlay** (optional grid)
+6. **Post-process** — upload canvas as WebGL texture, apply lighting & shadows (if enabled)
 
-This layered approach ensures fog affects only tiles, not objects or the player.
+This layered approach ensures fog affects only tiles, not objects or the player. The WebGL post-process operates on the final composited image.
 
 ### Entity Component System
 
@@ -152,11 +155,91 @@ All tunable constants live in `src/core/Config.ts`:
    - `anchorY` (0–1): vertical anchor point on the image (0.92 = feet near bottom)
    - `solid`: whether the player collides with it
 
+## Lighting & Shadows
+
+The game features a real-time lighting and shadow system implemented as a **WebGL2 post-processing pass** on top of the Canvas 2D renderer. Toggle with `L`.
+
+### Architecture
+
+```
+Canvas 2D (Renderer.ts)          WebGL2 overlay (PostProcessPipeline.ts)
+┌────────────────────┐           ┌──────────────────────────────────────┐
+│ Tiles, objects,    │  texture  │ Full-screen quad + fragment shader   │
+│ player, fog        │ ────────► │ per-pixel lighting, soft shadows,    │
+│ (unchanged)        │  upload   │ height-fade                          │
+└────────────────────┘           └──────────────────────────────────────┘
+```
+
+The 2D canvas content is uploaded as a `GL_TEXTURE_2D` every frame. A fragment shader multiplies each pixel's colour by the computed light contribution, producing a lit scene on an overlaid canvas with `pointer-events: none`.
+
+### Light model
+
+- **Ambient light** — constant RGB tint applied to the entire scene (twilight blue by default).
+- **Point lights** — each has position, colour, radius, intensity, and optional flicker. Falloff is smooth quadratic: `atten = 1 − (d/r)²`.
+- Currently one **sky light** simulates the moon/sun from the upper-left of the map.
+
+### Shadow casting
+
+Objects register as **occluders** — circles in screen space. For each pixel the shader ray-tests from fragment to every light through all occluders:
+
+1. Project occluder centre onto the frag→light segment (closest point).
+2. Compare perpendicular distance to occluder radius with `smoothstep` for soft penumbra.
+3. Smooth boundary fades at segment endpoints prevent hard-edge artifacts.
+4. Multiple occluder shadows per light combine with `min()` (not multiply) so overlapping objects don't produce unnaturally dark areas.
+
+Complex objects (e.g. the house) use **`shadowPoints`** — a grid of overlapping circles that approximate a rectangular shadow silhouette.
+
+Shadow length is **proportional to object height** — each occluder carries a `height` value, and the shader limits the shadow reach to `height × SHADOW_LENGTH_MULT`. Tall trees cast long shadows while small stones cast short ones.
+
+The **player also casts a shadow** as a circular occluder at their feet. `PLAYER_FOOT_OFFSET` shifts the occluder up from the sprite bottom to align with the character's visual feet (accounting for sprite padding).
+
+### Player height fade
+
+In a 2D top-down view, a character walking into shadow would darken uniformly. To simulate 3D height the shader applies a **height fade** within the player sprite bounds:
+
+- **Feet** (bottom of sprite) receive full shadow.
+- **Head** (top of sprite) has shadow reduced by `SHADOW_HEIGHT_FADE` (0–1).
+- The effect is contained horizontally and vertically within the sprite using `smoothstep` so it doesn't bleed outside.
+
+### Configuration (`Config.ts`)
+
+| Constant | Default | Description |
+|---|---|---|
+| `LIGHTING_ENABLED` | `true` | Enable post-process lighting on start |
+| `LIGHT_AMBIENT_R/G/B` | 0.18 / 0.22 / 0.38 | Global ambient colour (twilight blue) |
+| `SKY_LIGHT_OFFSET_X/Y` | −1500 / 1500 | Sky light world offset from map centre |
+| `SKY_LIGHT_RADIUS` | 3500 | Sky light reach (world pixels) |
+| `SKY_LIGHT_R/G/B` | 0.75 / 0.8 / 1.0 | Sky light colour |
+| `SKY_LIGHT_INTENSITY` | 0.6 | Sky light brightness multiplier |
+| `PLAYER_SHADOW_RADIUS` | 15 | Player shadow occluder radius (asset px) |
+| `PLAYER_FOOT_OFFSET` | 18 | Sprite-bottom → visual feet offset (asset px) |
+| `SHADOW_LENGTH_MULT` | 2.0 | Shadow reach = object height × this value |
+| `SHADOW_HEIGHT_FADE` | 0.8 | Shadow reduction at player head (0–1) |
+
+### Adding shadow-casting objects
+
+In `WorldGenerator.ts`, set shadow properties when calling `tileMap.addObject()`:
+
+- **Simple circle**: `shadowRadius: 35` — single circular occluder.
+- **Complex shape**: `shadowPoints: [{ dx, dy, radius }]` — array of circles offset from the object's grid position. Used for buildings.
+- **No shadow**: `shadowRadius: 0` or omit both fields.
+
+### Shader tuning reference
+
+| Shader parameter | Location | Effect |
+|---|---|---|
+| `r * 0.3 / r * 2.0` in `shadowFactor` | `PostProcessPipeline.ts` | Penumbra softness (inner/outer edge) |
+| `smoothstep(-r, r*0.3, t)` | `PostProcessPipeline.ts` | Endpoint boundary fade distance |
+| `u_hfWidth * 0.1 / 0.85` | `PostProcessPipeline.ts` | Height-fade horizontal containment |
+| `u_hfHeight * 0.4 / 0.85 / 1.05` | `PostProcessPipeline.ts` | Height-fade vertical shape (bell curve) |
+| `maxReach * 0.5 / maxReach` in `shadowFactor` | `PostProcessPipeline.ts` | Shadow length fade (start/end of reach) |
+
 ## Tech Stack
 
 - **TypeScript** — strict mode, ES modules
 - **Vite** — dev server with HMR, production bundler
-- **HTML5 Canvas 2D** — all rendering, no WebGL dependency
+- **HTML5 Canvas 2D** — base rendering (tiles, objects, entities)
+- **WebGL2** — post-processing pass for lighting and shadows
 - `image-rendering: pixelated` for crisp pixel art at any zoom
 
 ## License

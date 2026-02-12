@@ -26,6 +26,35 @@ export const Config = {
   MAP_COLS: 6,
   MAP_ROWS: 6,
 
+  /** Lighting — twilight sky light from upper-left */
+  LIGHTING_ENABLED: true,
+  LIGHT_AMBIENT_R: 0.18,
+  LIGHT_AMBIENT_G: 0.22,
+  LIGHT_AMBIENT_B: 0.38,
+
+  /** Sky light: world-pixel offset from map center (negative = upper-left) */
+  SKY_LIGHT_OFFSET_X: -1500,
+  SKY_LIGHT_OFFSET_Y: 1500,
+  SKY_LIGHT_RADIUS: 3500,
+  SKY_LIGHT_R: 0.75,
+  SKY_LIGHT_G: 0.8,
+  SKY_LIGHT_B: 1.0,
+  SKY_LIGHT_INTENSITY: 0.55,
+
+  /** Player shadow-casting radius in asset pixels */
+  PLAYER_SHADOW_RADIUS: 15,
+
+  /** Vertical offset (in asset pixels) from sprite bottom to visual feet.
+   *  Moves the shadow occluder up to match where the character actually stands. */
+  PLAYER_FOOT_OFFSET: 18,
+
+  /** Shadow length multiplier: maxReach = objectHeight × this value.
+   *  Higher = longer shadows (low sun angle), lower = shorter (high sun). */
+  SHADOW_LENGTH_MULT: 2.0,
+
+  /** Shadow height-fade: how much shadow is reduced at the head of a tall entity (0-1) */
+  SHADOW_HEIGHT_FADE: 0.8,
+
   /** Debug */
   DEBUG: true,
 } as const;

@@ -1,6 +1,7 @@
 import { Config } from './Config';
 import { Camera } from '../rendering/Camera';
 import { Renderer, RenderLayer } from '../rendering/Renderer';
+import { PostProcessPipeline } from '../rendering/PostProcessPipeline';
 import { InputSystem } from '../systems/InputSystem';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { AnimationSystem } from '../systems/AnimationSystem';
@@ -22,6 +23,7 @@ const CHAR_H = 128;
 export class Game {
   private camera: Camera;
   private renderer: Renderer;
+  private postProcess: PostProcessPipeline;
   private input: InputSystem;
   private physics: PhysicsSystem;
   private animationSystem: AnimationSystem;
@@ -36,6 +38,13 @@ export class Game {
     this.tileMap = tileMap;
     this.camera = new Camera();
     this.renderer = new Renderer(container, this.camera);
+    this.postProcess = new PostProcessPipeline(container, this.renderer.canvas);
+    this.postProcess.enabled = Config.LIGHTING_ENABLED;
+    this.postProcess.setAmbient(
+      Config.LIGHT_AMBIENT_R,
+      Config.LIGHT_AMBIENT_G,
+      Config.LIGHT_AMBIENT_B,
+    );
     this.input = new InputSystem(this.renderer.canvas, this.camera);
     this.physics = new PhysicsSystem(tileMap);
     this.animationSystem = new AnimationSystem();
@@ -125,7 +134,7 @@ export class Game {
     this.lastTimestamp = timestamp;
 
     this.update(dt);
-    this.render();
+    this.render(dt);
 
     requestAnimationFrame(this.loop);
   };
@@ -142,10 +151,13 @@ export class Game {
     this.hud.update(dt, this.player, this.camera, this.tileMap);
   }
 
-  private render(): void {
+  /** Track L-key toggle (edge-triggered, not held) */
+  private lightTogglePrev = false;
+
+  private render(dt: number): void {
     this.renderer.clear();
 
-    // Enqueue ground tiles (real tiles are 64×37)
+    // Enqueue ground tiles
     for (let r = 0; r < this.tileMap.rows; r++) {
       for (let c = 0; c < this.tileMap.cols; c++) {
         const def = this.tileMap.getTileDef(c, r);
@@ -180,6 +192,81 @@ export class Game {
     // Debug grid overlay (hold G)
     if (this.input.isDown('KeyG')) {
       this.renderer.drawGridOverlay(this.tileMap.cols, this.tileMap.rows);
+    }
+
+    // Toggle lighting with L (edge-triggered)
+    const lDown = this.input.isDown('KeyL');
+    if (lDown && !this.lightTogglePrev) {
+      this.postProcess.enabled = !this.postProcess.enabled;
+    }
+    this.lightTogglePrev = lDown;
+
+    // Post-process lighting pass
+    if (this.postProcess.enabled) {
+      this.postProcess.clearLights();
+      this.postProcess.clearOccluders();
+      this.postProcess.clearHeightFade();
+
+      // Sky light — fixed world position offset from map center (moon / sun)
+      const mapCenter = isoToScreen(
+        this.tileMap.cols / 2,
+        this.tileMap.rows / 2,
+      );
+      const skyWorldX = mapCenter.x + Config.SKY_LIGHT_OFFSET_X;
+      const skyWorldY = mapCenter.y + Config.SKY_LIGHT_OFFSET_Y;
+      const skyScreen = this.camera.worldToScreen(skyWorldX, skyWorldY);
+      this.postProcess.addLight({
+        x: skyScreen.x,
+        y: skyScreen.y,
+        radius: Config.SKY_LIGHT_RADIUS * this.camera.zoom,
+        r: Config.SKY_LIGHT_R,
+        g: Config.SKY_LIGHT_G,
+        b: Config.SKY_LIGHT_B,
+        intensity: Config.SKY_LIGHT_INTENSITY,
+        flicker: 0,
+      });
+
+      // Register shadow-casting objects as occluders
+      const zoom = this.camera.zoom;
+      this.postProcess.setShadowLengthMult(Config.SHADOW_LENGTH_MULT);
+      for (const obj of this.tileMap.objects) {
+        const objH = obj.height * zoom;
+        if (obj.shadowPoints) {
+          // Complex shape: multiple shadow circles
+          for (const sp of obj.shadowPoints) {
+            const ow = isoToScreen(obj.col + sp.dx, obj.row + sp.dy);
+            const os = this.camera.worldToScreen(ow.x, ow.y + Config.TILE_HEIGHT / 2);
+            this.postProcess.addOccluder({ x: os.x, y: os.y, radius: sp.radius * zoom, height: objH });
+          }
+        } else {
+          // Simple shape: single circle
+          const sr = obj.shadowRadius ?? obj.width * 0.15;
+          if (sr <= 0) continue;
+          const ow = isoToScreen(obj.col, obj.row);
+          const os = this.camera.worldToScreen(ow.x, ow.y + Config.TILE_HEIGHT / 2);
+          this.postProcess.addOccluder({ x: os.x, y: os.y, radius: sr * zoom, height: objH });
+        }
+      }
+
+      // Player shadow casting — register player as an occluder at visual feet
+      const pIso = isoToScreen(this.player.transform.x, this.player.transform.y);
+      const pScreen = this.camera.worldToScreen(pIso.x, pIso.y);
+      const footOffset = Config.PLAYER_FOOT_OFFSET * zoom;
+      const feetY = pScreen.y + Config.TILE_HEIGHT / 2 * zoom - footOffset;
+      this.postProcess.addOccluder({ x: pScreen.x, y: feetY, radius: Config.PLAYER_SHADOW_RADIUS * zoom, height: CHAR_H * zoom });
+
+      // Height fade for player — head stays lit when feet enter shadow
+      const spriteH = CHAR_H * zoom;
+      const spriteW = CHAR_W * zoom;
+      this.postProcess.setHeightFade(
+        pScreen.x,
+        feetY,
+        spriteW,
+        spriteH,
+        Config.SHADOW_HEIGHT_FADE,
+      );
+
+      this.postProcess.render(dt);
     }
   }
 }
