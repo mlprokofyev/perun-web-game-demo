@@ -140,6 +140,94 @@ All tunable constants live in `src/core/Config.ts`:
 | `CAMERA_DEFAULT_ZOOM` | 2 | Initial zoom level |
 | `CAMERA_ZOOM_MIN/MAX` | 1 / 5 | Zoom bounds |
 
+## World Coordinate Map
+
+The game uses a **6×6 isometric grid**. Coordinates are `(col, row)` — fractional values place objects between tile centres. The grid is rendered as a diamond: column increases to the **screen-right**, row increases to the **screen-left**, and both increase **downward**.
+
+### Grid layout (as seen on screen)
+
+```
+                         (0,0)
+                        /     \
+                   (1,0)       (0,1)
+                  /     \     /     \
+             (2,0)       (1,1)       (0,2)
+            /     \     /     \     /     \
+       (3,0)       (2,1)       (1,2)       (0,3)
+      /     \     /     \     /     \     /     \
+ (4,0)       (3,1)       (2,2)       (1,3)       (0,4)
+/     \     /     \     /     \     /     \     /     \
+ (5,0)       (4,1)       (3,2)       (2,3)       (1,4)       (0,5)
+        \     /     \     /     \     /     \     /     \     /
+         (5,1)       (4,2)       (3,3)       (2,4)       (1,5)
+                \     /     \     /     \     /     \     /
+                 (5,2)       (4,3)       (3,4)       (2,5)
+                        \     /     \     /     \     /
+                         (5,3)       (4,4)       (3,5)
+                                \     /     \     /
+                                 (5,4)       (4,5)
+                                        \     /
+                                         (5,5)
+```
+
+### Axis orientation
+
+```
+           col+ (screen-right ↘)
+          /
+   (0,0) ─────►
+         \
+          row+ (screen-left ↙)
+```
+
+- **col increases** → moves toward the screen bottom-right
+- **row increases** → moves toward the screen bottom-left
+- **(col+row) increases** → moves straight down on screen
+
+### Current object placements
+
+```
+         col →   0      1      2      3      4      5
+   row ↓     ┌──────┬──────┬──────┬──────┬──────┬──────┐
+         0   │      │      │      │      │      │      │
+              ├──────┼──────┼──────┼──────┼──────┼──────┤
+         1   │      │ 🏠🏠 │      │  🌳  │      │      │
+              │      │HOUSE │      │(3.5, │      │      │
+              ├──────┤(1.5, ├──────┤ 1)   ├──────┼──────┤
+         2   │  🔥  │ 1.5) │      │      │      │      │
+              │WINDOW│      │      │      │      │      │
+              │(1,2.3│      │      │      │      │      │
+              ├──────┼──────┼──────┼──────┼──────┼──────┤
+         3   │      │      │      │  🧑  │  🪨  │  🌳  │
+              │      │      │      │PLAYER│(4.8, │(5,   │
+              ├──────┼──────┼──────┤(3,3) ┤ 3)   ┤ 3.5) │
+         4   │      │  🌳  │      │      │      │      │
+              │      │(1,   │      │      │      │      │
+              ├──────┤ 4.5) ├──────┼──────┼──────┼──────┤
+         5   │      │      │      │      │      │      │
+              └──────┴──────┴──────┴──────┴──────┴──────┘
+```
+
+### Object reference table
+
+| Object | `(col, row)` | Type | Solid | Shadow |
+|---|---|---|---|---|
+| House | (1.5, 1.5) | `obj_house` | ✓ (1.1×1.1) | 3×3 shadow grid |
+| Tree 1 | (3.5, 1.0) | `obj_tree` | ✓ | radius 35 |
+| Tree 2 | (1.0, 4.5) | `obj_tree` | ✓ | radius 35 |
+| Tree 3 | (5.0, 3.5) | `obj_tree` | ✓ | radius 35 |
+| Stone | (4.8, 3.0) | `obj_stone` | ✗ | radius 10 |
+| Window light | (1.0, 2.3) | point light | — | — |
+| Player spawn | (3, 3) | — | — | radius 15 |
+
+### Positioning tips
+
+- **Integer coords** `(2, 3)` — centres on the tile at column 2, row 3.
+- **Fractional coords** `(1.5, 1.5)` — centres between four tiles (used for large objects like the house).
+- **Walkable area** — all tiles `(0,0)` to `(5,5)` are grass and walkable; solidity comes from objects.
+- **Off-grid placement** — values like `4.8` nudge objects within a cell. Useful for natural-looking clusters.
+- **Map centre** — `(3, 3)` in grid coords. Sky light offset is relative to this point.
+
 ## Adding Assets
 
 ### New tile
@@ -176,7 +264,8 @@ The 2D canvas content is uploaded as a `GL_TEXTURE_2D` every frame. A fragment s
 
 - **Ambient light** — constant RGB tint applied to the entire scene (twilight blue by default).
 - **Point lights** — each has position, colour, radius, intensity, and optional flicker. Falloff is smooth quadratic: `atten = 1 − (d/r)²`.
-- Currently one **sky light** simulates the moon/sun from the upper-left of the map.
+- A **sky light** simulates the moon/sun from the upper-left of the map.
+- A **window light** on the house emits a warm orange glow with subtle candle-like flicker.
 
 ### Shadow casting
 
@@ -210,7 +299,13 @@ In a 2D top-down view, a character walking into shadow would darken uniformly. T
 | `SKY_LIGHT_OFFSET_X/Y` | −1500 / 1500 | Sky light world offset from map centre |
 | `SKY_LIGHT_RADIUS` | 3500 | Sky light reach (world pixels) |
 | `SKY_LIGHT_R/G/B` | 0.75 / 0.8 / 1.0 | Sky light colour |
-| `SKY_LIGHT_INTENSITY` | 0.6 | Sky light brightness multiplier |
+| `SKY_LIGHT_INTENSITY` | 0.55 | Sky light brightness multiplier |
+| `WINDOW_LIGHT_COL/ROW` | 1.0 / 2.3 | Window light grid position |
+| `WINDOW_LIGHT_HEIGHT` | 32 | Window elevation above ground (asset px) |
+| `WINDOW_LIGHT_RADIUS` | 150 | Window light glow reach (px) |
+| `WINDOW_LIGHT_R/G/B` | 1.0 / 0.65 / 0.25 | Warm orange colour |
+| `WINDOW_LIGHT_INTENSITY` | 0.5 | Window light brightness |
+| `WINDOW_LIGHT_FLICKER` | 0.15 | Candle-like flicker strength |
 | `PLAYER_SHADOW_RADIUS` | 15 | Player shadow occluder radius (asset px) |
 | `PLAYER_FOOT_OFFSET` | 18 | Sprite-bottom → visual feet offset (asset px) |
 | `SHADOW_LENGTH_MULT` | 2.0 | Shadow reach = object height × this value |
