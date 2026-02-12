@@ -226,6 +226,26 @@ export class Game {
         flicker: 0,
       });
 
+      // House window light — warm orange glow
+      const winWorld = isoToScreen(
+        Config.WINDOW_LIGHT_COL,
+        Config.WINDOW_LIGHT_ROW,
+      );
+      const winScreen = this.camera.worldToScreen(
+        winWorld.x,
+        winWorld.y + Config.TILE_HEIGHT / 2 - Config.WINDOW_LIGHT_HEIGHT,
+      );
+      this.postProcess.addLight({
+        x: winScreen.x,
+        y: winScreen.y,
+        radius: Config.WINDOW_LIGHT_RADIUS * this.camera.zoom,
+        r: Config.WINDOW_LIGHT_R,
+        g: Config.WINDOW_LIGHT_G,
+        b: Config.WINDOW_LIGHT_B,
+        intensity: Config.WINDOW_LIGHT_INTENSITY,
+        flicker: Config.WINDOW_LIGHT_FLICKER,
+      });
+
       // Register shadow-casting objects as occluders
       const zoom = this.camera.zoom;
       this.postProcess.setShadowLengthMult(Config.SHADOW_LENGTH_MULT);

@@ -787,11 +787,13 @@ render(dt):
 
         1. Compute sky light screen position from world offset + camera
         2. addLight(skyLight)
-        3. setShadowLengthMult(SHADOW_LENGTH_MULT)
-        4. For each world object → addOccluder (position, radius, height)
-        5. addOccluder for player at visual feet (position + PLAYER_FOOT_OFFSET, radius, height)
-        6. Compute player sprite bounds → setHeightFade(footX, footY, width, height, strength)
-        7. postProcess.render(dt)  // upload texture + draw full-screen quad
+        3. Compute window light screen position (grid 1.0,2.3 elevated 32px)
+        4. addLight(windowLight)  // warm orange with flicker
+        5. setShadowLengthMult(SHADOW_LENGTH_MULT)
+        6. For each world object → addOccluder (position, radius, height)
+        7. addOccluder for player at visual feet (position + PLAYER_FOOT_OFFSET, radius, height)
+        8. Compute player sprite bounds → setHeightFade(footX, footY, width, height, strength)
+        9. postProcess.render(dt)  // upload texture + draw full-screen quad
 ```
 
 ### 7.7 Configuration Constants
@@ -803,7 +805,13 @@ render(dt):
 | `SKY_LIGHT_OFFSET_X/Y` | −1500 / 1500 | Sky light world-space offset |
 | `SKY_LIGHT_RADIUS` | 3500 | Sky light reach |
 | `SKY_LIGHT_R/G/B` | 0.75 / 0.8 / 1.0 | Sky light colour |
-| `SKY_LIGHT_INTENSITY` | 0.6 | Sky light brightness |
+| `SKY_LIGHT_INTENSITY` | 0.55 | Sky light brightness |
+| `WINDOW_LIGHT_COL/ROW` | 1.0 / 2.3 | House window light grid position |
+| `WINDOW_LIGHT_HEIGHT` | 32 | Window elevation above ground (asset px) |
+| `WINDOW_LIGHT_RADIUS` | 150 | Window glow reach (px) |
+| `WINDOW_LIGHT_R/G/B` | 1.0 / 0.65 / 0.25 | Warm orange colour |
+| `WINDOW_LIGHT_INTENSITY` | 0.5 | Window brightness |
+| `WINDOW_LIGHT_FLICKER` | 0.15 | Candle-like flicker |
 | `PLAYER_SHADOW_RADIUS` | 15 | Player shadow occluder radius (asset px) |
 | `PLAYER_FOOT_OFFSET` | 18 | Sprite bottom → visual feet offset (asset px) |
 | `SHADOW_LENGTH_MULT` | 2.0 | Shadow reach = object height × this value |
