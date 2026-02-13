@@ -163,8 +163,8 @@ void main() {
             /* soft horizontal containment */
             float hx = 1.0 - smoothstep(u_hfWidth * 0.1, u_hfWidth * 0.85, dx);
             /* vertical: 0 at feet, peaks mid-sprite, 0 above head */
-            float hy = smoothstep(0.0, u_hfHeight * 0.4, dy)
-                     * (1.0 - smoothstep(u_hfHeight * 0.85, u_hfHeight * 1.05, dy));
+            float hy = smoothstep(0.0, u_hfHeight * 0.8, dy)
+                     * (1.0 - smoothstep(u_hfHeight * 0.6, u_hfHeight * 1.2, dy));
 
             shadow = mix(shadow, 1.0, hx * hy * u_hfStrength);
         }

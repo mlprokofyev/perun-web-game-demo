@@ -34,10 +34,12 @@ npm run preview   # Serve the production build locally
 ├── index.html                     Entry point (canvas container, HUD, styles)
 ├── public/assets/sprites/         PNG assets
 │   ├── characters/
-│   │   └── player_idle.png        Player idle sprite (128×128)
+│   │   └── player_idle.png        Player idle sprite (113×218)
 │   ├── objects/
-│   │   ├── house.png              House object (512×512)
-│   │   ├── tree.png               Tree object (217×256)
+│   │   ├── house_2.png            House object (890×890, drawn at 600×600)
+│   │   ├── tree.png               Tree object (original, unused)
+│   │   ├── tree_2.png             Dead tree (511×700, drawn at 438×600)
+│   │   ├── tree_3.png             Snow tree (511×700, drawn at 438×600)
 │   │   └── stone_on_grass.png     Stone decoration (52×44)
 │   └── tiles/
 │       └── grass.png              Isometric grass tile (218×125)
@@ -51,7 +53,7 @@ npm run preview   # Serve the production build locally
 │   ├── rendering/
 │   │   ├── IsometricUtils.ts      isoToScreen / screenToIso coordinate conversion
 │   │   ├── Camera.ts              Viewport camera with smooth follow & zoom
-│   │   ├── Renderer.ts            Canvas renderer — Z-sorting, layers, boundary fog
+│   │   ├── Renderer.ts            Canvas renderer — Z-sorting, layers, boundary fog, animated wisps
 │   │   └── PostProcessPipeline.ts WebGL2 lighting & shadow post-process
 │   ├── entities/
 │   │   ├── Entity.ts              Base entity class (component container)
@@ -95,12 +97,16 @@ Each frame follows this order:
 
 1. **Clear** canvas with background color
 2. **Enqueue** all ground tiles → **flush ground layer**
-3. **Draw boundary fog** over tiles (radial vignette + edge gradients)
-4. **Enqueue** static objects + entities → **flush object layer**
-5. **Debug overlay** (optional grid)
-6. **Post-process** — upload canvas as WebGL texture, apply lighting & shadows (if enabled)
+3. **Back boundary fog** — radial vignette + top/left edge gradients (behind objects)
+4. **Back animated fog wisps** — drifting mist on far edges (behind objects)
+5. **Blob shadow** — soft ellipse under the player on the ground
+6. **Flush object layer** — static objects + entities, depth-sorted
+7. **Front boundary fog** — bottom/right edge gradients (over objects)
+8. **Front animated fog wisps** — drifting mist on near edges (over objects)
+9. **Debug overlay** (optional grid, hold `G`)
+10. **Post-process** — upload canvas as WebGL texture, apply lighting & shadows (if enabled)
 
-This layered approach ensures fog affects only tiles, not objects or the player. The WebGL post-process operates on the final composited image.
+The back/front fog split ensures objects close to the viewer are overlaid by front-edge fog (adding depth), while back-edge fog sits behind objects so they naturally occlude it. Back fog is dimmed by `BOUNDARY_FOG_BACK_MULT` to avoid over-darkening the far side.
 
 ### Entity Component System
 
@@ -135,10 +141,21 @@ All tunable constants live in `src/core/Config.ts`:
 | `TILE_HEIGHT` | 109 | Isometric diamond height (px) |
 | `MAP_COLS` | 6 | Grid columns |
 | `MAP_ROWS` | 6 | Grid rows |
+| `PLAYER_START_COL/ROW` | 3.5 / 4 | Player spawn grid position |
 | `PLAYER_SPEED` | 80 | Movement speed (world px/sec) |
 | `PLAYER_RUN_MULT` | 1.8 | Run speed multiplier |
-| `CAMERA_DEFAULT_ZOOM` | 2 | Initial zoom level |
+| `CAMERA_DEFAULT_ZOOM` | 1.5 | Initial zoom level |
 | `CAMERA_ZOOM_MIN/MAX` | 1 / 5 | Zoom bounds |
+| `PLAYER_BLOB_SHADOW_RX/RY` | 22 / 11 | Blob contact shadow radii (world px) |
+| `PLAYER_BLOB_SHADOW_OPACITY` | 0.38 | Blob shadow darkness (0–1) |
+| `BOUNDARY_FOG_PADDING` | −15 | Fog edge offset in screen px (neg = outside map) |
+| `BOUNDARY_FOG_BACK_MULT` | 0.33 | Back-edge fog opacity multiplier (0–1) |
+| `FOG_WISPS_PER_EDGE` | 20 | Animated wisp count per edge |
+| `FOG_WISP_SIZE` | 220 | Wisp base radius (screen px) |
+| `FOG_WISP_OPACITY` | 0.4 | Peak wisp opacity (0–1) |
+| `FOG_WISP_DRIFT_SPEED` | 0.3 | Lateral drift frequency (rad/s) |
+| `FOG_WISP_BREATH_SPEED` | 0.8 | Opacity pulse frequency (rad/s) |
+| `FOG_WISP_REACH` | 65 | Inward oscillation amplitude (px) |
 
 ## World Coordinate Map
 
@@ -191,34 +208,36 @@ The game uses a **6×6 isometric grid**. Coordinates are `(col, row)` — fracti
    row ↓     ┌──────┬──────┬──────┬──────┬──────┬──────┐
          0   │      │      │      │      │      │      │
               ├──────┼──────┼──────┼──────┼──────┼──────┤
-         1   │      │ 🏠🏠 │      │  🌳  │      │      │
+         1   │      │ 🏠🏠 │      │  🌲  │      │      │
               │      │HOUSE │      │(3.5, │      │      │
               ├──────┤(1.5, ├──────┤ 1)   ├──────┼──────┤
          2   │  🔥  │ 1.5) │      │      │      │      │
               │WINDOW│      │      │      │      │      │
-              │(1,2.3│      │      │      │      │      │
+              │(1,2.8│      │      │      │      │      │
               ├──────┼──────┼──────┼──────┼──────┼──────┤
-         3   │      │      │      │  🧑  │  🪨  │  🌳  │
-              │      │      │      │PLAYER│(4.8, │(5,   │
-              ├──────┼──────┼──────┤(3,3) ┤ 3)   ┤ 3.5) │
-         4   │      │  🌳  │      │      │      │      │
-              │      │(1,   │      │      │      │      │
-              ├──────┤ 4.5) ├──────┼──────┼──────┼──────┤
-         5   │      │      │      │      │      │      │
+         3   │      │      │      │      │  🪨  │  🌳  │
+              │      │      │      │      │(4.8, │(5,   │
+              ├──────┼──────┼──────┼──────┤ 3)   ┤ 3.5) │
+         4   │      │      │      │  🧑  │      │      │
+              │      │      │      │PLAYER│      │      │
+              ├──────┼──────┼──────┤(3.5,4├──────┼──────┤
+         5   │ 🌳   │      │      │      │      │      │
+              │(0.7, │      │      │      │      │      │
+              │ 4.7) │      │      │      │      │      │
               └──────┴──────┴──────┴──────┴──────┴──────┘
 ```
 
 ### Object reference table
 
-| Object | `(col, row)` | Type | Solid | Shadow |
-|---|---|---|---|---|
-| House | (1.5, 1.5) | `obj_house` | ✓ (1.1×1.1) | 3×3 shadow grid |
-| Tree 1 | (3.5, 1.0) | `obj_tree` | ✓ | radius 35 |
-| Tree 2 | (1.0, 4.5) | `obj_tree` | ✓ | radius 35 |
-| Tree 3 | (5.0, 3.5) | `obj_tree` | ✓ | radius 35 |
-| Stone | (4.8, 3.0) | `obj_stone` | ✗ | radius 10 |
-| Window light | (1.0, 2.3) | point light | — | — |
-| Player spawn | (3, 3) | — | — | radius 15 |
+| Object | `(col, row)` | Asset | Draw size | Source size | Solid | Shadow |
+|---|---|---|---|---|---|---|
+| House | (1.5, 1.5) | `obj_house` (house_2.png) | 600×600 | 890×890 | ✓ (2×2) | 3×3+1 shadow grid |
+| Dead tree | (3.5, 1.0) | `obj_tree2` (tree_2.png) | 438×600 | 511×700 | ✓ (0.9×0.9) | radius 45 |
+| Snow tree 1 | (0.7, 4.7) | `obj_tree_snow` (tree_3.png) | 438×600 | 511×700 | ✓ (0.9×0.9) | radius 35 |
+| Snow tree 2 | (5.0, 3.5) | `obj_tree_snow` (tree_3.png) | 438×600 | 511×700 | ✓ (0.9×0.9) | radius 35 |
+| Stone | (4.8, 3.0) | `obj_stone` | 52×44 | — | ✗ | radius 10 |
+| Window light | (1.0, 2.8) | point light | — | — | — | — |
+| Player spawn | (3.5, 4) | — | — | — | — | radius 15 |
 
 ### Positioning tips
 
@@ -239,9 +258,13 @@ The game uses a **6×6 isometric grid**. Coordinates are `(col, row)` — fracti
 ### New object
 1. Drop PNG into `public/assets/sprites/objects/`
 2. Add a load entry in `src/main.ts`
-3. Place via `tileMap.addObject({ col, row, assetId, width, height, anchorY, solid })`
+3. Place via `tileMap.addObject({ col, row, assetId, width, height, anchorY, solid, ... })`
+   - `width`/`height`: draw size in world pixels
+   - `srcW`/`srcH` (optional): source image pixel dimensions — use when the asset is higher resolution than the draw size
    - `anchorY` (0–1): vertical anchor point on the image (0.92 = feet near bottom)
    - `solid`: whether the player collides with it
+   - `solidCols`/`solidRows` (optional): collision footprint in grid cells (default 1)
+   - `shadowRadius` or `shadowPoints`: shadow-casting configuration (see below)
 
 ### New player animation
 
@@ -288,6 +311,32 @@ The on-screen draw size is controlled by `CHAR_DRAW_H` in `Game.ts` (default 128
 | `CHAR_DRAW_H` | `Game.ts` | Desired on-screen height in world pixels |
 | `frameCount` | `AnimationDef` | Number of frames in the horizontal strip |
 | `frameRate` | `AnimationDef` | Playback speed (frames per second) |
+
+## Boundary Fog & Animated Wisps
+
+The map edges are softened with two complementary fog systems that hide the hard diamond boundary and add atmospheric depth.
+
+### Static boundary fog (`Renderer.drawBoundaryFog`)
+
+- **Radial vignette** — a large elliptical gradient centred on the map dims the outer reaches.
+- **Edge gradients** — linear gradient strips along each of the four isometric diamond edges fade to the background colour.
+- Drawn in two passes: **back** (top + left, behind objects) and **front** (bottom + right, over objects). This ensures objects in the foreground are naturally overlaid by fog while objects in the background occlude it.
+- `BOUNDARY_FOG_PADDING` shifts fog inward (positive) or outward (negative) from the diamond edges.
+- `BOUNDARY_FOG_BACK_MULT` reduces opacity of the back-edge pass to prevent over-darkening the far side of the map.
+
+### Animated fog wisps (`Renderer.drawAnimatedEdgeFog`)
+
+Drifting wisp blobs along the map edges add a living, misty atmosphere.
+
+- Each edge spawns `FOG_WISPS_PER_EDGE` wisps evenly distributed along its length.
+- Per-wisp animation: lateral **drift** along the edge, inward **oscillation** toward the map centre, and opacity **breathing** — all driven by deterministic `sin` functions seeded with a golden-ratio phase offset.
+- Wisps are stretched ellipses drawn with `globalCompositeOperation = 'lighter'` for an additive glow.
+- Same back/front split as the static fog — far-edge wisps render behind objects, near-edge wisps render over objects.
+- Back wisps are dimmed by `BOUNDARY_FOG_BACK_MULT`.
+
+### Blob (contact) shadow
+
+A soft elliptical shadow drawn directly under the player on the ground layer, before objects are rendered. Configured via `PLAYER_BLOB_SHADOW_RX`, `PLAYER_BLOB_SHADOW_RY`, and `PLAYER_BLOB_SHADOW_OPACITY` in `Config.ts`.
 
 ## Lighting & Shadows
 
@@ -342,13 +391,13 @@ In a 2D top-down view, a character walking into shadow would darken uniformly. T
 |---|---|---|
 | `LIGHTING_ENABLED` | `true` | Enable post-process lighting on start |
 | `LIGHT_AMBIENT_R/G/B` | 0.18 / 0.22 / 0.38 | Global ambient colour (twilight blue) |
-| `SKY_LIGHT_OFFSET_X/Y` | −1500 / 1500 | Sky light world offset from map centre |
+| `SKY_LIGHT_OFFSET_X/Y` | −2000 / 300 | Sky light world offset from map centre |
 | `SKY_LIGHT_RADIUS` | 3500 | Sky light reach (world pixels) |
 | `SKY_LIGHT_R/G/B` | 0.75 / 0.8 / 1.0 | Sky light colour |
 | `SKY_LIGHT_INTENSITY` | 0.55 | Sky light brightness multiplier |
-| `WINDOW_LIGHT_COL/ROW` | 1.0 / 2.3 | Window light grid position |
-| `WINDOW_LIGHT_HEIGHT` | 32 | Window elevation above ground (asset px) |
-| `WINDOW_LIGHT_RADIUS` | 150 | Window light glow reach (px) |
+| `WINDOW_LIGHT_COL/ROW` | 1.0 / 2.8 | Window light grid position |
+| `WINDOW_LIGHT_HEIGHT` | 46 | Window elevation above ground (asset px) |
+| `WINDOW_LIGHT_RADIUS` | 214 | Window light glow reach (px) |
 | `WINDOW_LIGHT_R/G/B` | 1.0 / 0.65 / 0.25 | Warm orange colour |
 | `WINDOW_LIGHT_INTENSITY` | 0.5 | Window light brightness |
 | `WINDOW_LIGHT_FLICKER` | 0.15 | Candle-like flicker strength |

@@ -40,6 +40,7 @@ export class Game {
   private hud: HUD;
 
   private lastTimestamp: number = 0;
+  private elapsed: number = 0;
   private running: boolean = false;
 
   constructor(container: HTMLElement, tileMap: TileMap) {
@@ -62,8 +63,8 @@ export class Game {
     this.player = new Player();
     this.player.drawScale = CHAR_SCALE;
     this.player.transform.set(
-      Math.floor(tileMap.cols / 2),
-      Math.floor(tileMap.rows / 2)
+      Config.PLAYER_START_COL,
+      Config.PLAYER_START_ROW,
     );
 
     // Determine if we have a real character sprite loaded
@@ -183,6 +184,7 @@ export class Game {
   private lightTogglePrev = false;
 
   private render(dt: number): void {
+    this.elapsed += dt;
     this.renderer.clear();
 
     // Enqueue ground tiles
@@ -201,7 +203,8 @@ export class Game {
         obj.col, obj.row,
         obj.assetId,
         obj.width, obj.height,
-        obj.anchorY
+        obj.anchorY,
+        obj.srcW, obj.srcH,
       );
     }
 
@@ -211,11 +214,25 @@ export class Game {
     // 1) Draw ground tiles
     this.renderer.flushLayer(RenderLayer.GROUND);
 
-    // 2) Fog on top of tiles only
-    this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows);
+    // 2) Back boundary fog + back animated wisps — behind objects
+    this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows, 'back');
+    this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'back');
 
-    // 3) Draw objects & entities on top of fog
+    // 3) Blob shadow under the player (on ground, before objects)
+    const pIsoShadow = isoToScreen(this.player.transform.x, this.player.transform.y);
+    this.renderer.drawBlobShadow(
+      pIsoShadow.x, pIsoShadow.y,
+      Config.PLAYER_BLOB_SHADOW_RX,
+      Config.PLAYER_BLOB_SHADOW_RY,
+      Config.PLAYER_BLOB_SHADOW_OPACITY,
+    );
+
+    // 4) Draw objects & entities
     this.renderer.flushLayer(RenderLayer.OBJECT);
+
+    // 5) Front boundary fog + front animated wisps — over objects
+    this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows, 'front');
+    this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'front');
 
     // Debug grid overlay (hold G)
     if (this.input.isDown('KeyG')) {
@@ -296,12 +313,21 @@ export class Game {
         }
       }
 
-      // Player shadow casting — register player as an occluder at visual feet
+      // Player shadow casting — register player as occluders at visual feet.
+      // Use 3 overlapping circles for a softer, wider silhouette instead of a single point.
       const pIso = isoToScreen(this.player.transform.x, this.player.transform.y);
       const pScreen = this.camera.worldToScreen(pIso.x, pIso.y);
       const footOffset = Config.PLAYER_FOOT_OFFSET * zoom;
       const feetY = pScreen.y + Config.TILE_HEIGHT / 2 * zoom - footOffset;
-      this.postProcess.addOccluder({ x: pScreen.x, y: feetY, radius: Config.PLAYER_SHADOW_RADIUS * zoom, height: CHAR_DRAW_H * zoom });
+      const pShadowR = Config.PLAYER_SHADOW_RADIUS * zoom;
+      const pShadowH = CHAR_DRAW_H * zoom;
+      // Center circle
+      this.postProcess.addOccluder({ x: pScreen.x, y: feetY, radius: pShadowR, height: pShadowH });
+      // Flanking circles — offset horizontally, slightly smaller
+      const flankOff = pShadowR * 0.7;
+      const flankR   = pShadowR * 0.7;
+      this.postProcess.addOccluder({ x: pScreen.x - flankOff, y: feetY, radius: flankR, height: pShadowH * 0.8 });
+      this.postProcess.addOccluder({ x: pScreen.x + flankOff, y: feetY, radius: flankR, height: pShadowH * 0.8 });
 
       // Height fade for player — head stays lit when feet enter shadow
       const spriteH = CHAR_DRAW_H * zoom;

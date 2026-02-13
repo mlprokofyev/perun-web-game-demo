@@ -9,8 +9,14 @@ export interface WorldObject {
   col: number;
   row: number;
   assetId: string;
+  /** Draw width in world pixels */
   width: number;
+  /** Draw height in world pixels */
   height: number;
+  /** Source image width — defaults to width if omitted (for high-res assets) */
+  srcW?: number;
+  /** Source image height — defaults to height if omitted */
+  srcH?: number;
   anchorY: number;
   solid: boolean;
   /** Grid footprint — how many columns the solid area spans (default 1) */
