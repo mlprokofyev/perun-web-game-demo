@@ -254,9 +254,15 @@ export class Game {
         flicker: 0,
       });
 
-      // Window light — warm orange glow on the house window
-      const winWorld = isoToScreen(Config.WINDOW_LIGHT_COL, Config.WINDOW_LIGHT_ROW);
-      const winScreen = this.camera.worldToScreen(winWorld.x, winWorld.y - Config.WINDOW_LIGHT_HEIGHT);
+      // House window light — warm orange glow
+      const winWorld = isoToScreen(
+        Config.WINDOW_LIGHT_COL,
+        Config.WINDOW_LIGHT_ROW,
+      );
+      const winScreen = this.camera.worldToScreen(
+        winWorld.x,
+        winWorld.y + Config.TILE_HEIGHT / 2 - Config.WINDOW_LIGHT_HEIGHT,
+      );
       this.postProcess.addLight({
         x: winScreen.x,
         y: winScreen.y,

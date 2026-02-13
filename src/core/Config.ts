@@ -63,6 +63,17 @@ export const Config = {
    *  Higher = longer shadows (low sun angle), lower = shorter (high sun). */
   SHADOW_LENGTH_MULT: 2.0,
 
+  /** House window light — warm orange halo */
+  WINDOW_LIGHT_COL: 1.0,
+  WINDOW_LIGHT_ROW: 2.3,
+  WINDOW_LIGHT_HEIGHT: 32,       // asset px above ground
+  WINDOW_LIGHT_RADIUS: 150,
+  WINDOW_LIGHT_R: 1.0,
+  WINDOW_LIGHT_G: 0.65,
+  WINDOW_LIGHT_B: 0.25,
+  WINDOW_LIGHT_INTENSITY: 0.5,
+  WINDOW_LIGHT_FLICKER: 0.15,    // subtle candle-like flicker
+
   /** Shadow height-fade: how much shadow is reduced at the head of a tall entity (0-1) */
   SHADOW_HEIGHT_FADE: 0.8,
 
