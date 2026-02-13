@@ -41,6 +41,17 @@ export const Config = {
   SKY_LIGHT_B: 1.0,
   SKY_LIGHT_INTENSITY: 0.55,
 
+  /** Window light on the house — warm orange glow with candle flicker */
+  WINDOW_LIGHT_COL: 1.0,
+  WINDOW_LIGHT_ROW: 2.3,
+  WINDOW_LIGHT_HEIGHT: 32,
+  WINDOW_LIGHT_RADIUS: 150,
+  WINDOW_LIGHT_R: 1.0,
+  WINDOW_LIGHT_G: 0.65,
+  WINDOW_LIGHT_B: 0.25,
+  WINDOW_LIGHT_INTENSITY: 0.5,
+  WINDOW_LIGHT_FLICKER: 0.15,
+
   /** Player shadow-casting radius in asset pixels */
   PLAYER_SHADOW_RADIUS: 15,
 
@@ -54,6 +65,17 @@ export const Config = {
 
   /** Shadow height-fade: how much shadow is reduced at the head of a tall entity (0-1) */
   SHADOW_HEIGHT_FADE: 0.8,
+
+  /** Volumetric sprite shading — gives the player a 3D cylindrical look */
+  VOLUMETRIC_ENABLED: true,
+  /** Cylindrical diffuse shading strength (0 = flat, 1 = full cylinder) */
+  VOLUMETRIC_DIFFUSE: 0.8,
+  /** Rim / back-light strength on silhouette edges (0 = none, 1 = bright) */
+  VOLUMETRIC_RIM: 0.4,
+  /** Rim light colour — cool blue to match twilight */
+  VOLUMETRIC_RIM_R: 0.6,
+  VOLUMETRIC_RIM_G: 0.75,
+  VOLUMETRIC_RIM_B: 1.0,
 
   /** Debug */
   DEBUG: true,

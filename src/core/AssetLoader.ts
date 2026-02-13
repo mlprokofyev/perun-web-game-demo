@@ -42,6 +42,15 @@ export class AssetLoader {
   has(id: string): boolean {
     return this.images.has(id) || this.canvases.has(id);
   }
+
+  /** Get the pixel dimensions of a loaded asset. Returns {width, height} or null if not found. */
+  getSize(id: string): { width: number; height: number } | null {
+    const img = this.images.get(id);
+    if (img) return { width: img.naturalWidth, height: img.naturalHeight };
+    const cvs = this.canvases.get(id);
+    if (cvs) return { width: cvs.width, height: cvs.height };
+    return null;
+  }
 }
 
 export const assetLoader = new AssetLoader();

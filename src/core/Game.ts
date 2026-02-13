@@ -75,15 +75,23 @@ export class Game {
       'south_east', 'south_west', 'north_east', 'north_west',
     ];
 
+    // Helper: derive frame count from sheet width / frame width
+    const frameCountOf = (assetId: string, frameW: number): number => {
+      const size = assetLoader.getSize(assetId);
+      if (!size) return 1;
+      return Math.max(1, Math.floor(size.width / frameW));
+    };
+
     // Register player animations (frameWidth/Height = source pixel size)
     for (const dir of directions) {
       if (hasRealChar) {
         // Idle: use real idle sprite for all directions (single pose for now)
+        const idleAsset = 'char_idle';
         const idleDef: AnimationDef = {
-          assetId: 'char_idle',
+          assetId: idleAsset,
           frameWidth: CHAR_SRC_W,
           frameHeight: CHAR_SRC_H,
-          frameCount: 1,
+          frameCount: frameCountOf(idleAsset, CHAR_SRC_W),
           frameRate: 1,
           loop: true,
         };
@@ -91,33 +99,35 @@ export class Game {
 
         // Walk: use direction-specific asset if loaded, otherwise fall back to idle
         const walkAssetId = `char_walk_${dir}`;
-        const walkAsset = assetLoader.has(walkAssetId) ? walkAssetId : 'char_idle';
+        const walkAsset = assetLoader.has(walkAssetId) ? walkAssetId : idleAsset;
         const walkDef: AnimationDef = {
           assetId: walkAsset,
           frameWidth: CHAR_SRC_W,
           frameHeight: CHAR_SRC_H,
-          frameCount: 1,
-          frameRate: 8,
+          frameCount: frameCountOf(walkAsset, CHAR_SRC_W),
+          frameRate: 5,
           loop: true,
         };
         this.player.animController.addAnimation(`walk_${dir}`, walkDef);
       } else {
         // Fallback to procedural assets (only 4 cardinal directions available)
         const procDir = dir.includes('_') ? dir.split('_')[0] : dir; // diagonal → nearest cardinal
+        const procWalk = `char_walk_${procDir}`;
+        const procIdle = `char_idle_${procDir}`;
         const walkDef: AnimationDef = {
-          assetId: `char_walk_${procDir}`,
+          assetId: procWalk,
           frameWidth: 32,
           frameHeight: 48,
-          frameCount: 4,
+          frameCount: frameCountOf(procWalk, 32),
           frameRate: 8,
           loop: true,
         };
         this.player.animController.addAnimation(`walk_${dir}`, walkDef);
         const idleDef: AnimationDef = {
-          assetId: `char_idle_${procDir}`,
+          assetId: procIdle,
           frameWidth: 32,
           frameHeight: 48,
-          frameCount: 1,
+          frameCount: frameCountOf(procIdle, 32),
           frameRate: 1,
           loop: true,
         };
@@ -244,6 +254,20 @@ export class Game {
         flicker: 0,
       });
 
+      // Window light — warm orange glow on the house window
+      const winWorld = isoToScreen(Config.WINDOW_LIGHT_COL, Config.WINDOW_LIGHT_ROW);
+      const winScreen = this.camera.worldToScreen(winWorld.x, winWorld.y - Config.WINDOW_LIGHT_HEIGHT);
+      this.postProcess.addLight({
+        x: winScreen.x,
+        y: winScreen.y,
+        radius: Config.WINDOW_LIGHT_RADIUS * this.camera.zoom,
+        r: Config.WINDOW_LIGHT_R,
+        g: Config.WINDOW_LIGHT_G,
+        b: Config.WINDOW_LIGHT_B,
+        intensity: Config.WINDOW_LIGHT_INTENSITY,
+        flicker: Config.WINDOW_LIGHT_FLICKER,
+      });
+
       // Register shadow-casting objects as occluders
       const zoom = this.camera.zoom;
       this.postProcess.setShadowLengthMult(Config.SHADOW_LENGTH_MULT);
@@ -283,6 +307,44 @@ export class Game {
         spriteH,
         Config.SHADOW_HEIGHT_FADE,
       );
+
+      // Volumetric sprite shading — cylindrical diffuse + rim light
+      if (Config.VOLUMETRIC_ENABLED) {
+        const playerAnim = this.player.animController;
+        const frame = playerAnim.getCurrentFrame();
+        const assetId = playerAnim.getCurrentAssetId();
+        const spriteImg = assetLoader.get(assetId);
+        const sheetSize = assetLoader.getSize(assetId);
+
+        if (spriteImg && sheetSize) {
+          // Screen rect of the player sprite (top=0 convention, matching Renderer)
+          const drawX = pScreen.x - CHAR_DRAW_W / 2 * zoom;
+          const drawY = pScreen.y + (-CHAR_DRAW_H + Config.TILE_HEIGHT / 2) * zoom;
+          const drawW = CHAR_DRAW_W * zoom;
+          const drawH = CHAR_DRAW_H * zoom;
+
+          // Source UV in the sprite-sheet texture (after UNPACK_FLIP_Y)
+          const srcU  = frame.x / sheetSize.width;
+          const srcV  = 1 - (frame.y + frame.height) / sheetSize.height;
+          const srcUW = frame.width / sheetSize.width;
+          const srcVH = frame.height / sheetSize.height;
+
+          this.postProcess.setVolumetricSprite(
+            spriteImg as TexImageSource,
+            drawX, drawY, drawW, drawH,
+            srcU, srcV, srcUW, srcVH,
+          );
+          this.postProcess.setVolumetricParams(
+            Config.VOLUMETRIC_DIFFUSE,
+            Config.VOLUMETRIC_RIM,
+            Config.VOLUMETRIC_RIM_R,
+            Config.VOLUMETRIC_RIM_G,
+            Config.VOLUMETRIC_RIM_B,
+          );
+        }
+      } else {
+        this.postProcess.clearVolumetric();
+      }
 
       this.postProcess.render(dt);
     }
