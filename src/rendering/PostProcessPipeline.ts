@@ -58,6 +58,15 @@ uniform float u_hfWidth;        /* sprite width in pixels */
 uniform float u_hfHeight;       /* sprite height in pixels */
 uniform float u_hfStrength;     /* 0-1: how much shadow is reduced at head */
 
+/* Volumetric sprite shading — cylindrical diffuse + rim light */
+uniform sampler2D u_spriteTex;
+uniform int       u_volActive;      /* 0 = off, 1 = on */
+uniform vec4      u_spriteRect;     /* screen rect in GL pixels: x, y (bottom-left), w, h */
+uniform vec4      u_spriteSrcUV;    /* source UV in sprite texture: u, v, uWidth, vHeight */
+uniform float     u_volDiffuse;     /* cylindrical diffuse strength 0-1 */
+uniform float     u_volRim;         /* rim light strength 0-1 */
+uniform vec3      u_volRimColor;    /* rim light colour */
+
 in  vec2 v_uv;
 out vec4 fragColor;
 
@@ -65,6 +74,15 @@ out vec4 fragColor;
 
 float hash(float n) {
     return fract(sin(n) * 43758.5453123);
+}
+
+/* Sample sprite alpha — returns 0.0 for UVs outside the source frame rect
+   (prevents reading adjacent sprite-sheet frames during edge detection). */
+float spriteAlpha(vec2 uv) {
+    vec2 mn = u_spriteSrcUV.xy;
+    vec2 mx = mn + u_spriteSrcUV.zw;
+    if (uv.x < mn.x || uv.x > mx.x || uv.y < mn.y || uv.y > mx.y) return 0.0;
+    return texture(u_spriteTex, uv).a;
 }
 
 /*
@@ -154,7 +172,57 @@ void main() {
         light += u_lightColor[i] * u_lightIntensity[i] * atten * flicker * shadow;
     }
 
-    light = min(light, vec3(1.0));
+    /* ── Volumetric sprite shading ── cylindrical diffuse + rim light ── */
+    if (u_volActive > 0 && u_numLights > 0) {
+        vec2 sprMin  = u_spriteRect.xy;
+        vec2 sprSize = u_spriteRect.zw;
+        vec2 lp = fragPos - sprMin;
+
+        if (lp.x >= 0.0 && lp.x <= sprSize.x && lp.y >= 0.0 && lp.y <= sprSize.y) {
+            vec2 luv   = lp / sprSize;
+            vec2 srcUV = u_spriteSrcUV.xy + luv * u_spriteSrcUV.zw;
+            float alpha = spriteAlpha(srcUV);
+
+            if (alpha > 0.1) {
+                /* Cylindrical normal — character is a vertical cylinder */
+                float nx = (luv.x - 0.5) * 2.0;
+                float nz = sqrt(max(0.001, 1.0 - nx * nx));
+                vec3 N = normalize(vec3(nx, 0.0, nz));
+
+                /* 3D light direction from sky light (index 0).
+                   Screen XY gives horizontal direction; fake a Z from distance
+                   so the light feels elevated. */
+                vec2  toLight  = u_lightPos[0] - fragPos;
+                float sDist    = length(toLight);
+                vec3  L        = normalize(vec3(toLight, max(sDist * 0.5, 200.0)));
+                float NdotL    = dot(N, L);
+
+                /* Half-Lambert diffuse — never fully dark */
+                float diffuse = NdotL * 0.5 + 0.5;
+                light *= mix(vec3(1.0), vec3(diffuse), u_volDiffuse);
+
+                /* Rim light via alpha-edge detection.
+                   Sample alpha at ±1.5 px in each direction;
+                   edge pixels have at least one transparent neighbour. */
+                vec2  pxUV = u_spriteSrcUV.zw / sprSize;  /* 1 screen-pixel in UV */
+                float sD   = 1.5;
+                float aL = spriteAlpha(srcUV + vec2(-pxUV.x * sD, 0.0));
+                float aR = spriteAlpha(srcUV + vec2( pxUV.x * sD, 0.0));
+                float aU = spriteAlpha(srcUV + vec2(0.0,  pxUV.y * sD));
+                float aD = spriteAlpha(srcUV + vec2(0.0, -pxUV.y * sD));
+
+                float edge = 1.0 - min(min(aL, aR), min(aU, aD));
+                edge *= smoothstep(0.1, 0.5, alpha);   /* fade with sprite alpha */
+
+                /* Fresnel-like: brighter on the side facing away from light */
+                float rim = pow(1.0 - clamp(NdotL, 0.0, 1.0), 2.0)
+                          * edge * u_volRim;
+                light += u_volRimColor * rim;
+            }
+        }
+    }
+
+    light = min(light, vec3(1.2));   /* allow slight bloom from rim */
     fragColor = vec4(scene.rgb * light, 1.0);
 }`;
 
@@ -219,6 +287,24 @@ export class PostProcessPipeline {
   private hfWidth = 0;
   private hfHeight = 0;
   private hfStrength = 0;
+
+  /* Volumetric sprite shading */
+  private spriteTex: WebGLTexture | null = null;
+  private volActive = false;
+  private spriteScreenX = 0;   // screen-space left (top = 0 convention)
+  private spriteScreenY = 0;   // screen-space top
+  private spriteScreenW = 0;
+  private spriteScreenH = 0;
+  private spriteSrcU = 0;
+  private spriteSrcV = 0;
+  private spriteSrcUW = 1;
+  private spriteSrcVH = 1;
+  private volDiffuse = 0.45;
+  private volRim = 0.6;
+  private volRimR = 0.6;
+  private volRimG = 0.75;
+  private volRimB = 1.0;
+  private spriteImage: TexImageSource | null = null;
 
   get enabled(): boolean {
     return this._enabled;
@@ -315,6 +401,14 @@ export class PostProcessPipeline {
       'u_hfWidth',
       'u_hfHeight',
       'u_hfStrength',
+      /* volumetric */
+      'u_spriteTex',
+      'u_volActive',
+      'u_spriteRect',
+      'u_spriteSrcUV',
+      'u_volDiffuse',
+      'u_volRim',
+      'u_volRimColor',
     ]) {
       this.loc[n] = gl.getUniformLocation(prog, n);
     }
@@ -378,13 +472,25 @@ export class PostProcessPipeline {
 
   private initTexture(): void {
     const gl = this.gl!;
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+
+    /* Scene texture (unit 0) */
     this.sceneTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    /* Sprite texture for volumetric shading (unit 1) */
+    this.spriteTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.spriteTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0);   /* restore default unit */
   }
 
   /* ── Resize ─────────────────────────────────────────────────────── */
@@ -440,6 +546,42 @@ export class PostProcessPipeline {
 
   clearHeightFade(): void {
     this.hfActive = false;
+  }
+
+  /* ── Volumetric sprite shading ─────────────────────────────────── */
+
+  /** Provide the player sprite image + on-screen rect + source UV rect.
+   *  Screen coords use top=0 convention (same as the rest of the engine).
+   *  Source UV is in normalised texture coords after Y-flip. */
+  setVolumetricSprite(
+    image: TexImageSource,
+    screenX: number, screenY: number,
+    screenW: number, screenH: number,
+    srcU: number, srcV: number, srcUW: number, srcVH: number,
+  ): void {
+    this.volActive = true;
+    this.spriteImage = image;
+    this.spriteScreenX = screenX;
+    this.spriteScreenY = screenY;
+    this.spriteScreenW = screenW;
+    this.spriteScreenH = screenH;
+    this.spriteSrcU = srcU;
+    this.spriteSrcV = srcV;
+    this.spriteSrcUW = srcUW;
+    this.spriteSrcVH = srcVH;
+  }
+
+  setVolumetricParams(diffuse: number, rim: number, rimR: number, rimG: number, rimB: number): void {
+    this.volDiffuse = diffuse;
+    this.volRim = rim;
+    this.volRimR = rimR;
+    this.volRimG = rimG;
+    this.volRimB = rimB;
+  }
+
+  clearVolumetric(): void {
+    this.volActive = false;
+    this.spriteImage = null;
   }
 
   /** Upload scene texture, set uniforms, draw. Call once per frame after 2D rendering. */
@@ -509,6 +651,31 @@ export class PostProcessPipeline {
       gl.uniform1f(this.loc['u_hfWidth'], this.hfWidth);
       gl.uniform1f(this.loc['u_hfHeight'], this.hfHeight);
       gl.uniform1f(this.loc['u_hfStrength'], this.hfStrength);
+    }
+
+    /* Volumetric sprite shading */
+    gl.uniform1i(this.loc['u_volActive'], this.volActive ? 1 : 0);
+    if (this.volActive && this.spriteImage) {
+      /* Upload sprite sheet to TEXTURE1 */
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.spriteTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.spriteImage);
+      gl.uniform1i(this.loc['u_spriteTex'], 1);
+
+      /* Sprite screen rect — convert from top=0 to GL bottom=0 */
+      const glX = this.spriteScreenX;
+      const glY = h - this.spriteScreenY - this.spriteScreenH;
+      gl.uniform4f(this.loc['u_spriteRect'], glX, glY, this.spriteScreenW, this.spriteScreenH);
+
+      /* Source UV rect (already in flipped-texture coordinates) */
+      gl.uniform4f(this.loc['u_spriteSrcUV'], this.spriteSrcU, this.spriteSrcV, this.spriteSrcUW, this.spriteSrcVH);
+
+      /* Tuning */
+      gl.uniform1f(this.loc['u_volDiffuse'], this.volDiffuse);
+      gl.uniform1f(this.loc['u_volRim'], this.volRim);
+      gl.uniform3f(this.loc['u_volRimColor'], this.volRimR, this.volRimG, this.volRimB);
+
+      gl.activeTexture(gl.TEXTURE0); /* restore */
     }
 
     /* Draw */
