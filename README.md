@@ -155,6 +155,52 @@ All tunable constants live in `src/core/Config.ts`:
    - `anchorY` (0–1): vertical anchor point on the image (0.92 = feet near bottom)
    - `solid`: whether the player collides with it
 
+### New player animation
+
+Player animations are horizontal sprite sheets — frames laid out left to right in a single row. Each frame must be the same size as the idle sprite (`CHAR_SRC_W × CHAR_SRC_H`, currently 113×218).
+
+The animation system uses keys in the format `{state}_{direction}` where state is `idle` or `walk` and direction is `south`, `north`, `east`, or `west`.
+
+#### Steps
+
+1. **Create the sprite sheet.** For a 6-frame walk cycle: lay out 6 frames of 113×218 in a single row → final PNG is 678×218. Transparent background.
+
+2. **Drop the PNG** into `public/assets/sprites/characters/`. Naming convention: `player_{state}_{direction}.png` (e.g. `player_walk_south.png`).
+
+3. **Register the asset in `src/main.ts`** — add a load entry inside `assetLoader.loadAll([...])`:
+   ```ts
+   { id: 'char_walk_south', path: '/assets/sprites/characters/player_walk_south.png' },
+   ```
+   Asset ID format: `char_{state}_{direction}`.
+
+4. **Wire the animation in `src/core/Game.ts`** — in the animation registration block, point the `walk_south` animation def at the new asset and set the correct frame count:
+   ```ts
+   const walkDef: AnimationDef = {
+     assetId: 'char_walk_south',
+     frameWidth: CHAR_SRC_W,   // single frame width (113)
+     frameHeight: CHAR_SRC_H,  // single frame height (218)
+     frameCount: 6,            // number of frames in the sheet
+     frameRate: 8,             // frames per second
+     loop: true,
+   };
+   this.player.animController.addAnimation('walk_south', walkDef);
+   ```
+
+5. **Repeat for other directions/states** — add `walk_north`, `walk_east`, `walk_west`, or multi-frame `idle_*` animations the same way.
+
+#### Scaling
+
+The on-screen draw size is controlled by `CHAR_DRAW_H` in `Game.ts` (default 128). The engine derives a `drawScale` from the ratio `CHAR_DRAW_H / CHAR_SRC_H`, so any sprite resolution works — just keep `CHAR_SRC_W`/`CHAR_SRC_H` matching the actual frame pixel dimensions.
+
+#### Quick reference
+
+| Constant | Location | Purpose |
+|---|---|---|
+| `CHAR_SRC_W` / `CHAR_SRC_H` | `Game.ts` | Source frame dimensions (must match PNG) |
+| `CHAR_DRAW_H` | `Game.ts` | Desired on-screen height in world pixels |
+| `frameCount` | `AnimationDef` | Number of frames in the horizontal strip |
+| `frameRate` | `AnimationDef` | Playback speed (frames per second) |
+
 ## Lighting & Shadows
 
 The game features a real-time lighting and shadow system implemented as a **WebGL2 post-processing pass** on top of the Canvas 2D renderer. Toggle with `L`.

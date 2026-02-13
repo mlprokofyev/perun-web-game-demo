@@ -17,6 +17,14 @@ async function boot(): Promise<void> {
 
       // Character
       { id: 'char_idle', path: '/assets/sprites/characters/player_idle.png' },
+      { id: 'char_walk_south', path: '/assets/sprites/characters/player_walk_south.png' },
+      { id: 'char_walk_north', path: '/assets/sprites/characters/player_walk_north.png' },
+      { id: 'char_walk_east', path: '/assets/sprites/characters/player_walk_east.png' },
+      { id: 'char_walk_west', path: '/assets/sprites/characters/player_walk_west.png' },
+      { id: 'char_walk_south_east', path: '/assets/sprites/characters/player_walk_south_east.png' },
+      { id: 'char_walk_south_west', path: '/assets/sprites/characters/player_walk_south_west.png' },
+      { id: 'char_walk_north_east', path: '/assets/sprites/characters/player_walk_north_east.png' },
+      { id: 'char_walk_north_west', path: '/assets/sprites/characters/player_walk_north_west.png' },
 
       // Objects
       { id: 'obj_tree',  path: '/assets/sprites/objects/tree.png' },

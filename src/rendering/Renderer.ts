@@ -93,6 +93,10 @@ export class Renderer {
     const anim = entity.animController;
     const frame = anim.getCurrentFrame();
     const assetId = anim.getCurrentAssetId();
+    const s = entity.drawScale;
+
+    const drawW = frame.width * s;
+    const drawH = frame.height * s;
 
     this.renderQueue.push({
       layer: RenderLayer.OBJECT,
@@ -105,10 +109,10 @@ export class Renderer {
       srcW: frame.width,
       srcH: frame.height,
       // Entities: anchor at center-bottom
-      offsetX: -frame.width / 2,
-      offsetY: -frame.height + Config.TILE_HEIGHT / 2 - t.z,
-      drawW: frame.width,
-      drawH: frame.height,
+      offsetX: -drawW / 2,
+      offsetY: -drawH + Config.TILE_HEIGHT / 2 - t.z,
+      drawW,
+      drawH,
     });
   }
 

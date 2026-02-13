@@ -16,9 +16,17 @@ import { assetLoader } from '../core/AssetLoader';
 const TILE_IMG_W = 218;
 const TILE_IMG_H = 125;
 
-/** Character sprite dimensions */
-const CHAR_W = 128;
-const CHAR_H = 128;
+/** Character sprite source dimensions (must match the actual PNG frame size) */
+const CHAR_SRC_W = 113;
+const CHAR_SRC_H = 218;
+
+/** Desired on-screen draw height in world pixels.
+ *  Adjust this to make the character bigger or smaller on the map. */
+const CHAR_DRAW_H = 128;
+
+/** Derived scale: source pixels → draw pixels */
+const CHAR_SCALE = CHAR_DRAW_H / CHAR_SRC_H;
+const CHAR_DRAW_W = CHAR_SRC_W * CHAR_SCALE;
 
 export class Game {
   private camera: Camera;
@@ -52,6 +60,7 @@ export class Game {
 
     // Create player
     this.player = new Player();
+    this.player.drawScale = CHAR_SCALE;
     this.player.transform.set(
       Math.floor(tileMap.cols / 2),
       Math.floor(tileMap.rows / 2)
@@ -60,34 +69,43 @@ export class Game {
     // Determine if we have a real character sprite loaded
     const hasRealChar = assetLoader.has('char_idle');
 
-    // Register player animations
-    const directions = ['south', 'north', 'east', 'west'];
+    // All 8 directions (4 cardinal + 4 diagonal)
+    const directions = [
+      'south', 'north', 'east', 'west',
+      'south_east', 'south_west', 'north_east', 'north_west',
+    ];
+
+    // Register player animations (frameWidth/Height = source pixel size)
     for (const dir of directions) {
       if (hasRealChar) {
-        // Use real idle sprite for all directions (single image, no walk sheet yet)
+        // Idle: use real idle sprite for all directions (single pose for now)
         const idleDef: AnimationDef = {
           assetId: 'char_idle',
-          frameWidth: CHAR_W,
-          frameHeight: CHAR_H,
+          frameWidth: CHAR_SRC_W,
+          frameHeight: CHAR_SRC_H,
           frameCount: 1,
           frameRate: 1,
           loop: true,
         };
         this.player.animController.addAnimation(`idle_${dir}`, idleDef);
-        // Also use idle for walk until walk sheets are provided
+
+        // Walk: use direction-specific asset if loaded, otherwise fall back to idle
+        const walkAssetId = `char_walk_${dir}`;
+        const walkAsset = assetLoader.has(walkAssetId) ? walkAssetId : 'char_idle';
         const walkDef: AnimationDef = {
-          assetId: 'char_idle',
-          frameWidth: CHAR_W,
-          frameHeight: CHAR_H,
+          assetId: walkAsset,
+          frameWidth: CHAR_SRC_W,
+          frameHeight: CHAR_SRC_H,
           frameCount: 1,
           frameRate: 8,
           loop: true,
         };
         this.player.animController.addAnimation(`walk_${dir}`, walkDef);
       } else {
-        // Fallback to procedural assets
+        // Fallback to procedural assets (only 4 cardinal directions available)
+        const procDir = dir.includes('_') ? dir.split('_')[0] : dir; // diagonal → nearest cardinal
         const walkDef: AnimationDef = {
-          assetId: `char_walk_${dir}`,
+          assetId: `char_walk_${procDir}`,
           frameWidth: 32,
           frameHeight: 48,
           frameCount: 4,
@@ -96,7 +114,7 @@ export class Game {
         };
         this.player.animController.addAnimation(`walk_${dir}`, walkDef);
         const idleDef: AnimationDef = {
-          assetId: `char_idle_${dir}`,
+          assetId: `char_idle_${procDir}`,
           frameWidth: 32,
           frameHeight: 48,
           frameCount: 1,
@@ -253,11 +271,11 @@ export class Game {
       const pScreen = this.camera.worldToScreen(pIso.x, pIso.y);
       const footOffset = Config.PLAYER_FOOT_OFFSET * zoom;
       const feetY = pScreen.y + Config.TILE_HEIGHT / 2 * zoom - footOffset;
-      this.postProcess.addOccluder({ x: pScreen.x, y: feetY, radius: Config.PLAYER_SHADOW_RADIUS * zoom, height: CHAR_H * zoom });
+      this.postProcess.addOccluder({ x: pScreen.x, y: feetY, radius: Config.PLAYER_SHADOW_RADIUS * zoom, height: CHAR_DRAW_H * zoom });
 
       // Height fade for player — head stays lit when feet enter shadow
-      const spriteH = CHAR_H * zoom;
-      const spriteW = CHAR_W * zoom;
+      const spriteH = CHAR_DRAW_H * zoom;
+      const spriteW = CHAR_DRAW_W * zoom;
       this.postProcess.setHeightFade(
         pScreen.x,
         feetY,

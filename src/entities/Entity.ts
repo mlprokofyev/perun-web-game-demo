@@ -12,6 +12,8 @@ export class Entity {
   solid: boolean = false;
   /** Render layer hint */
   layer: 'ground' | 'object' | 'character' = 'character';
+  /** Scale factor applied when drawing the sprite (1 = native pixel size) */
+  drawScale: number = 1;
 
   constructor(id: string) {
     this.id = id;
