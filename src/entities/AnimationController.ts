@@ -15,6 +15,13 @@ export class AnimationController {
   private elapsed: number = 0;
   private lastDirection: string = 'south';
 
+  /** When true, frame advancement is paused (player stopped but not yet idle) */
+  private frozen: boolean = false;
+  /** Seconds since the player stopped moving */
+  private idleTimer: number = 0;
+  /** Seconds of inactivity before switching to the idle animation */
+  static readonly IDLE_TIMEOUT: number = 10;
+
   /** Register an animation under a key like "walk_south" */
   addAnimation(key: string, def: AnimationDef): void {
     this.animations.set(key, def);
@@ -28,10 +35,12 @@ export class AnimationController {
     this.currentKey = key;
     this.currentFrame = 0;
     this.elapsed = 0;
+    this.frozen = false;
   }
 
-  /** Advance frame timer */
+  /** Advance frame timer (skipped while frozen) */
   update(dt: number): void {
+    if (this.frozen) return;
     const anim = this.animations.get(this.currentKey);
     if (!anim) return;
     this.elapsed += dt;
@@ -45,24 +54,46 @@ export class AnimationController {
     }
   }
 
-  /** Automatically pick walk/idle animation from velocity */
-  setFromVelocity(vx: number, vy: number): void {
-    if (Math.abs(vx) < 0.001 && Math.abs(vy) < 0.001) {
-      this.play('idle_' + this.lastDirection);
+  /** Automatically pick walk/idle animation from velocity.
+   *  On stop: freeze on last walk frame → after IDLE_TIMEOUT switch to idle. */
+  setFromVelocity(vx: number, vy: number, dt: number): void {
+    const isMoving = Math.abs(vx) >= 0.001 || Math.abs(vy) >= 0.001;
+
+    if (isMoving) {
+      this.idleTimer = 0;
+      this.frozen = false;
+      const dir = this.velocityToDirection(vx, vy);
+      this.lastDirection = dir;
+      this.play('walk_' + dir);
       return;
     }
-    const dir = this.velocityToDirection(vx, vy);
-    this.lastDirection = dir;
-    this.play('walk_' + dir);
+
+    // Not moving — freeze current walk frame and start counting
+    if (!this.frozen && this.currentKey.startsWith('walk_')) {
+      this.frozen = true;
+      this.idleTimer = 0;
+    }
+
+    if (this.frozen) {
+      this.idleTimer += dt;
+      if (this.idleTimer >= AnimationController.IDLE_TIMEOUT) {
+        this.frozen = false;
+        this.play('idle_' + this.lastDirection);
+      }
+    }
   }
 
   private velocityToDirection(vx: number, vy: number): string {
     const angle = ((Math.atan2(vy, vx) * 180) / Math.PI + 360) % 360;
-    // Map angles to 4 cardinal directions
-    if (angle >= 315 || angle < 45) return 'east';
-    if (angle >= 45 && angle < 135) return 'south';
-    if (angle >= 135 && angle < 225) return 'west';
-    return 'north';
+    // Map angles to 8 directions (45° sectors)
+    if (angle >= 337.5 || angle < 22.5) return 'east';
+    if (angle >= 22.5 && angle < 67.5) return 'south_east';
+    if (angle >= 67.5 && angle < 112.5) return 'south';
+    if (angle >= 112.5 && angle < 157.5) return 'south_west';
+    if (angle >= 157.5 && angle < 202.5) return 'west';
+    if (angle >= 202.5 && angle < 247.5) return 'north_west';
+    if (angle >= 247.5 && angle < 292.5) return 'north';
+    return 'north_east';
   }
 
   getCurrentAssetId(): string {

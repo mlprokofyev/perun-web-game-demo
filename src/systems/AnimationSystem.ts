@@ -7,9 +7,9 @@ export class AnimationSystem {
     for (const e of entities) {
       if (e instanceof Player) {
         // Use screen-space direction for animation facing (classic isometric feel)
-        e.animController.setFromVelocity(e.screenDirX, e.screenDirY);
+        e.animController.setFromVelocity(e.screenDirX, e.screenDirY, dt);
       } else {
-        e.animController.setFromVelocity(e.velocity.vx, e.velocity.vy);
+        e.animController.setFromVelocity(e.velocity.vx, e.velocity.vy, dt);
       }
       e.animController.update(dt);
     }
