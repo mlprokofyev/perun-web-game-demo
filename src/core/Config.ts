@@ -13,6 +13,8 @@ export const Config = {
   FRAME_TIME: 1000 / 60,
 
   /** Player defaults */
+  PLAYER_START_COL: 3.5,
+  PLAYER_START_ROW: 4,
   PLAYER_SPEED: 80,   // pixels per second in world space
   PLAYER_RUN_MULT: 1.8,
 
@@ -33,19 +35,20 @@ export const Config = {
   LIGHT_AMBIENT_B: 0.38,
 
   /** Sky light: world-pixel offset from map center (negative = upper-left) */
-  SKY_LIGHT_OFFSET_X: -1500,
-  SKY_LIGHT_OFFSET_Y: 1500,
+  SKY_LIGHT_OFFSET_X: -2000,
+  SKY_LIGHT_OFFSET_Y: 300,
   SKY_LIGHT_RADIUS: 3500,
   SKY_LIGHT_R: 0.75,
   SKY_LIGHT_G: 0.8,
   SKY_LIGHT_B: 1.0,
   SKY_LIGHT_INTENSITY: 0.55,
 
-  /** Window light on the house — warm orange glow with candle flicker */
+  /** Window light on the house — warm orange glow with candle flicker
+   *  Position scaled for 750px house footprint (center 1.5,1.5) */
   WINDOW_LIGHT_COL: 1.0,
-  WINDOW_LIGHT_ROW: 2.3,
-  WINDOW_LIGHT_HEIGHT: 32,
-  WINDOW_LIGHT_RADIUS: 150,
+  WINDOW_LIGHT_ROW: 2.8,
+  WINDOW_LIGHT_HEIGHT: 46,
+  WINDOW_LIGHT_RADIUS: 214,
   WINDOW_LIGHT_R: 1.0,
   WINDOW_LIGHT_G: 0.65,
   WINDOW_LIGHT_B: 0.25,
@@ -58,6 +61,12 @@ export const Config = {
   /** Vertical offset (in asset pixels) from sprite bottom to visual feet.
    *  Moves the shadow occluder up to match where the character actually stands. */
   PLAYER_FOOT_OFFSET: 18,
+
+  /** Blob (contact) shadow under the player — soft ellipse on the ground.
+   *  Radii are in world pixels; the ellipse is squashed vertically for isometric. */
+  PLAYER_BLOB_SHADOW_RX: 22,
+  PLAYER_BLOB_SHADOW_RY: 11,
+  PLAYER_BLOB_SHADOW_OPACITY: 0.38,
 
   /** Shadow length multiplier: maxReach = objectHeight × this value.
    *  Higher = longer shadows (low sun angle), lower = shorter (high sun). */
@@ -87,6 +96,20 @@ export const Config = {
   VOLUMETRIC_RIM_R: 0.6,
   VOLUMETRIC_RIM_G: 0.75,
   VOLUMETRIC_RIM_B: 1.0,
+
+  /** Boundary fog padding — inward offset in screen px from each map edge.
+   *  Positive = fog starts further inside the map; negative = fog starts outside. */
+  BOUNDARY_FOG_PADDING: -15,
+  /** Opacity multiplier for back-edge fog (top/left). 0 = invisible, 1 = same as front. */
+  BOUNDARY_FOG_BACK_MULT: 0.33,
+
+  /** Animated edge fog — drifting wisps near map boundaries (drawn over everything) */
+  FOG_WISPS_PER_EDGE: 20,
+  FOG_WISP_SIZE: 220,         // base radius in screen px
+  FOG_WISP_OPACITY: 0.4,      // peak opacity (0-1)
+  FOG_WISP_DRIFT_SPEED: 0.3, // lateral drift freq (radians/s)
+  FOG_WISP_BREATH_SPEED: 0.8, // opacity pulse freq (radians/s)
+  FOG_WISP_REACH: 65,         // inward oscillation amplitude in px
 
   /** Debug */
   DEBUG: true,

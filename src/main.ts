@@ -28,8 +28,10 @@ async function boot(): Promise<void> {
 
       // Objects
       { id: 'obj_tree',  path: '/assets/sprites/objects/tree.png' },
+      { id: 'obj_tree2', path: '/assets/sprites/objects/tree_2.png' },
+      { id: 'obj_tree_snow', path: '/assets/sprites/objects/tree_3.png' },
       { id: 'obj_stone', path: '/assets/sprites/objects/stone_on_grass.png' },
-      { id: 'obj_house', path: '/assets/sprites/objects/house.png' },
+      { id: 'obj_house', path: '/assets/sprites/objects/house_2.png' },
     ]);
     console.log('[Perun] All PNG assets loaded.');
   } catch (err) {
