@@ -234,6 +234,9 @@ export class Game {
     this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows, 'front');
     this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'front');
 
+    // 6) Snowfall — 3D world-space particles drawn over the scene, before post-process
+    this.renderer.drawSnow(this.tileMap.cols, this.tileMap.rows, dt, this.elapsed);
+
     // Debug grid overlay (hold G)
     if (this.input.isDown('KeyG')) {
       this.renderer.drawGridOverlay(this.tileMap.cols, this.tileMap.rows);

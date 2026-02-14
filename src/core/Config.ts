@@ -13,13 +13,13 @@ export const Config = {
   FRAME_TIME: 1000 / 60,
 
   /** Player defaults */
-  PLAYER_START_COL: 3.5,
-  PLAYER_START_ROW: 4,
+  PLAYER_START_COL: 2.1,
+  PLAYER_START_ROW: 3.4,
   PLAYER_SPEED: 80,   // pixels per second in world space
   PLAYER_RUN_MULT: 1.8,
 
   /** Camera */
-  CAMERA_ZOOM_MIN: 1,
+  CAMERA_ZOOM_MIN: 0.85,
   CAMERA_ZOOM_MAX: 5,
   CAMERA_ZOOM_STEP: 0.25,
   CAMERA_DEFAULT_ZOOM: 1.5,
@@ -52,7 +52,7 @@ export const Config = {
   WINDOW_LIGHT_R: 1.0,
   WINDOW_LIGHT_G: 0.65,
   WINDOW_LIGHT_B: 0.25,
-  WINDOW_LIGHT_INTENSITY: 0.5,
+  WINDOW_LIGHT_INTENSITY: 0.8,
   WINDOW_LIGHT_FLICKER: 0.15,
 
   /** Player shadow-casting radius in asset pixels */
@@ -72,17 +72,6 @@ export const Config = {
    *  Higher = longer shadows (low sun angle), lower = shorter (high sun). */
   SHADOW_LENGTH_MULT: 2.0,
 
-  /** House window light — warm orange halo */
-  WINDOW_LIGHT_COL: 1.0,
-  WINDOW_LIGHT_ROW: 2.3,
-  WINDOW_LIGHT_HEIGHT: 32,       // asset px above ground
-  WINDOW_LIGHT_RADIUS: 150,
-  WINDOW_LIGHT_R: 1.0,
-  WINDOW_LIGHT_G: 0.65,
-  WINDOW_LIGHT_B: 0.25,
-  WINDOW_LIGHT_INTENSITY: 0.5,
-  WINDOW_LIGHT_FLICKER: 0.15,    // subtle candle-like flicker
-
   /** Shadow height-fade: how much shadow is reduced at the head of a tall entity (0-1) */
   SHADOW_HEIGHT_FADE: 0.8,
 
@@ -101,15 +90,29 @@ export const Config = {
    *  Positive = fog starts further inside the map; negative = fog starts outside. */
   BOUNDARY_FOG_PADDING: -15,
   /** Opacity multiplier for back-edge fog (top/left). 0 = invisible, 1 = same as front. */
-  BOUNDARY_FOG_BACK_MULT: 0.33,
+  BOUNDARY_FOG_BACK_MULT: 0.4,
 
   /** Animated edge fog — drifting wisps near map boundaries (drawn over everything) */
   FOG_WISPS_PER_EDGE: 20,
   FOG_WISP_SIZE: 220,         // base radius in screen px
   FOG_WISP_OPACITY: 0.4,      // peak opacity (0-1)
-  FOG_WISP_DRIFT_SPEED: 0.3, // lateral drift freq (radians/s)
-  FOG_WISP_BREATH_SPEED: 0.8, // opacity pulse freq (radians/s)
+  FOG_WISP_DRIFT_SPEED: 0.45, // lateral drift freq (radians/s)
+  FOG_WISP_BREATH_SPEED: 1.0, // opacity pulse freq (radians/s)
   FOG_WISP_REACH: 65,         // inward oscillation amplitude in px
+
+  /** Snowfall weather effect — particles live in 3D world space */
+  SNOW_ENABLED: true,
+  SNOW_PARTICLE_COUNT: 1000,     // total snowflakes across the map
+  SNOW_FALL_SPEED: 40,          // vertical fall speed (world px/s)
+  SNOW_WIND_SPEED: 50,          // lateral wind drift in world px/s (positive = screen-right)
+  SNOW_MIN_SIZE: 1.0,           // smallest flake screen radius (px, zoom-independent)
+  SNOW_MAX_SIZE: 4,             // largest flake screen radius (px)
+  SNOW_OPACITY: 0.85,           // peak flake opacity (0-1)
+  SNOW_WOBBLE_SPEED: 1.8,       // horizontal sine-wobble frequency (rad/s)
+  SNOW_WOBBLE_AMP: 25,          // wobble amplitude in world px
+  SNOW_DEPTH_LAYERS: 10,         // number of parallax depth layers (1=flat, 3-5=rich depth)
+  SNOW_MAX_HEIGHT: 500,         // max height above ground plane (world px)
+  SNOW_SPAWN_PADDING: 2,        // extra grid cells beyond map edges for flake spawning
 
   /** Debug */
   DEBUG: true,

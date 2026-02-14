@@ -13,7 +13,7 @@ async function boot(): Promise<void> {
   try {
     await assetLoader.loadAll([
       // Tiles
-      { id: 'tile_grass', path: '/assets/sprites/tiles/grass.png' },
+      { id: 'tile_grass', path: '/assets/sprites/tiles/ground_snow_thick.png' },
 
       // Character
       { id: 'char_idle', path: '/assets/sprites/characters/player_idle.png' },
@@ -27,11 +27,11 @@ async function boot(): Promise<void> {
       { id: 'char_walk_north_west', path: '/assets/sprites/characters/player_walk_north_west.png' },
 
       // Objects
-      { id: 'obj_tree',  path: '/assets/sprites/objects/tree.png' },
-      { id: 'obj_tree2', path: '/assets/sprites/objects/tree_2.png' },
-      { id: 'obj_tree_snow', path: '/assets/sprites/objects/tree_3.png' },
+      { id: 'obj_tree_med_snow',  path: '/assets/sprites/objects/tree_snow_med_1.png' },
+      { id: 'obj_tree_big', path: '/assets/sprites/objects/tree_big.png' },
+      { id: 'obj_tree_snow_big_1', path: '/assets/sprites/objects/tree_snow_big_1.png'},
       { id: 'obj_stone', path: '/assets/sprites/objects/stone_on_grass.png' },
-      { id: 'obj_house', path: '/assets/sprites/objects/house_2.png' },
+      { id: 'obj_house', path: '/assets/sprites/objects/house_2_snow.png' },
     ]);
     console.log('[Perun] All PNG assets loaded.');
   } catch (err) {
