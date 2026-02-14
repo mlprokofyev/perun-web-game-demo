@@ -69,6 +69,140 @@
       text-align: right;
       z-index: 10;
     }
+
+    /* ── Interactable marker (pixel-art ▼ above NPC) ── */
+    .interact-marker {
+      position: absolute;
+      transform: translateX(-50%);
+      width: 14px;
+      height: 10px;
+      pointer-events: none;
+      z-index: 9999;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 1px 0 rgba(0,0,0,0.7))
+              drop-shadow(0 0 5px rgba(237, 131, 18, 0.5));
+    }
+
+    /* ── Interact prompt ─────────────────────────────── */
+    #interact-prompt {
+      position: absolute;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #d0c8a0;
+      font-family: monospace;
+      font-size: 13px;
+      padding: 6px 14px;
+      background: rgba(8, 10, 18, 0.85);
+      border: 1px solid rgba(180, 170, 140, 0.3);
+      border-radius: 4px;
+      z-index: 50;
+      pointer-events: none;
+      text-shadow: 1px 1px 2px #000;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      display: none;
+    }
+    #interact-prompt .key {
+      display: inline-block;
+      background: rgba(180, 170, 140, 0.15);
+      border: 1px solid rgba(180, 170, 140, 0.4);
+      border-radius: 3px;
+      padding: 0 5px;
+      margin: 0 2px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* ── Dialog overlay ──────────────────────────────── */
+    #dialog-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: none;          /* toggled by DialogUI */
+      justify-content: center;
+      padding: 0 20px 24px;
+      pointer-events: auto;
+    }
+    .dialog-box {
+      width: 100%;
+      max-width: 680px;
+      background: rgba(8, 10, 18, 0.94);
+      border: 2px solid rgba(180, 170, 140, 0.35);
+      border-radius: 6px;
+      padding: 18px 22px 14px;
+      font-family: monospace;
+      color: #d0c8a0;
+    }
+    .dialog-speaker {
+      font-size: 13px;
+      color: #a89868;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .dialog-controls {
+      display: flex;
+      gap: 18px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(180, 170, 140, 0.15);
+      font-size: 11px;
+      color: #706850;
+    }
+    .dialog-controls .key {
+      display: inline-block;
+      background: rgba(180, 170, 140, 0.15);
+      border: 1px solid rgba(180, 170, 140, 0.4);
+      border-radius: 3px;
+      padding: 0 5px;
+      margin-right: 3px;
+      font-size: 10px;
+      line-height: 1.6;
+    }
+    .dialog-text {
+      font-size: 15px;
+      line-height: 1.7;
+      margin-bottom: 14px;
+      color: #e8e0c0;
+      font-style: italic;
+    }
+    .dialog-choices {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .dialog-choice {
+      cursor: pointer;
+      padding: 7px 12px;
+      margin: 3px 0;
+      border-left: 3px solid transparent;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      font-size: 14px;
+      font-family: monospace;
+      color: #b0a880;
+    }
+    .dialog-choice:hover,
+    .dialog-choice.selected {
+      background: rgba(180, 170, 140, 0.08);
+      border-left-color: #d0c8a0;
+      color: #f0e8c0;
+    }
+    .dialog-choice-pointer {
+      display: inline-block;
+      width: 14px;
+      margin-right: 6px;
+      font-size: 13px;
+      color: #d0c8a0;
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+    .dialog-choice.selected .dialog-choice-pointer {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -80,7 +214,25 @@
       WASD / Arrows — move<br>
       Mouse wheel — zoom<br>
       Shift — run<br>
+      E — interact<br>
       L — toggle lighting
+    </div>
+
+    <!-- Interact prompt (shown when near an NPC) -->
+    <div id="interact-prompt">Press <span class="key">E</span> to talk</div>
+
+    <!-- Dialog overlay (shown during conversation) -->
+    <div id="dialog-container">
+      <div class="dialog-box">
+        <div class="dialog-speaker"></div>
+        <div class="dialog-text"></div>
+        <ul class="dialog-choices"></ul>
+        <div class="dialog-controls">
+          <span><span class="key">↑</span><span class="key">↓</span> navigate</span>
+          <span><span class="key">Enter</span> choose</span>
+          <span><span class="key">ESC</span> close</span>
+        </div>
+      </div>
     </div>
   </div>
   <script type="module" src="/src/main.ts"></script>

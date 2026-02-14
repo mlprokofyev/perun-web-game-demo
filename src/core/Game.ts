@@ -6,42 +6,64 @@ import { InputSystem } from '../systems/InputSystem';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { AnimationSystem } from '../systems/AnimationSystem';
 import { Player } from '../entities/Player';
+import { NPC } from '../entities/NPC';
 import { TileMap } from '../world/TileMap';
 import { HUD } from '../ui/HUD';
+import { DialogUI } from '../ui/DialogUI';
+import { DialogState } from '../states/DialogState';
+import { getDialogTree } from '../dialog/DialogData';
+// Side-effect import: registers the sample dog dialog in the registry
+import '../dialog/DialogData';
 import { isoToScreen } from '../rendering/IsometricUtils';
 import type { AnimationDef } from '../entities/AnimationController';
 import { assetLoader } from '../core/AssetLoader';
+import { ALL_DIRECTIONS } from './Types';
+import { EntityManager } from './EntityManager';
+import { eventBus } from './EventBus';
+import { InputManager, Action } from './InputManager';
+import { GameState, GameStateManager } from './GameState';
 
-/** Tile image dimensions (matches PNG asset) */
-const TILE_IMG_W = 218;
-const TILE_IMG_H = 125;
-
-/** Character sprite source dimensions (must match the actual PNG frame size) */
-const CHAR_SRC_W = 113;
-const CHAR_SRC_H = 218;
-
-/** Desired on-screen draw height in world pixels.
- *  Adjust this to make the character bigger or smaller on the map. */
-const CHAR_DRAW_H = 128;
-
-/** Derived scale: source pixels → draw pixels */
+/** Derived constants from Config — computed once at module load */
+const TILE_IMG_W = Config.TILE_IMG_W;
+const TILE_IMG_H = Config.TILE_IMG_H;
+const CHAR_SRC_W = Config.CHAR_SRC_W;
+const CHAR_SRC_H = Config.CHAR_SRC_H;
+const CHAR_DRAW_H = Config.CHAR_DRAW_H;
 const CHAR_SCALE = CHAR_DRAW_H / CHAR_SRC_H;
 const CHAR_DRAW_W = CHAR_SRC_W * CHAR_SCALE;
+
+/** Derive frame count from sprite sheet width / single frame width */
+function frameCountOf(assetId: string, frameW: number): number {
+  const size = assetLoader.getSize(assetId);
+  if (!size) return 1;
+  return Math.max(1, Math.floor(size.width / frameW));
+}
 
 export class Game {
   private camera: Camera;
   private renderer: Renderer;
   private postProcess: PostProcessPipeline;
   private input: InputSystem;
+  private inputManager: InputManager;
   private physics: PhysicsSystem;
   private animationSystem: AnimationSystem;
+  private entityManager: EntityManager;
+  private stateManager: GameStateManager;
   private player: Player;
   private tileMap: TileMap;
   private hud: HUD;
+  private dialogUI: DialogUI;
+  private interactPrompt: HTMLElement;
 
   private lastTimestamp: number = 0;
   private elapsed: number = 0;
   private running: boolean = false;
+
+  /** Edge-triggered interaction tracking */
+  private interactPrev: boolean = false;
+
+  /** DOM markers for interactable NPCs (keyed by entity id) */
+  private interactMarkers: Map<string, HTMLElement> = new Map();
 
   constructor(container: HTMLElement, tileMap: TileMap) {
     this.tileMap = tileMap;
@@ -55,38 +77,44 @@ export class Game {
       Config.LIGHT_AMBIENT_B,
     );
     this.input = new InputSystem(this.renderer.canvas, this.camera);
+    this.inputManager = new InputManager(this.input);
     this.physics = new PhysicsSystem(tileMap);
     this.animationSystem = new AnimationSystem();
+    this.entityManager = new EntityManager();
     this.hud = new HUD();
+    this.dialogUI = new DialogUI();
+    this.interactPrompt = document.getElementById('interact-prompt')!;
 
-    // Create player
+    // ── Player ────────────────────────────────────────
     this.player = new Player();
     this.player.drawScale = CHAR_SCALE;
     this.player.transform.set(
       Config.PLAYER_START_COL,
       Config.PLAYER_START_ROW,
     );
+    this.registerPlayerAnimations();
+    this.player.animController.play('idle_south');
+    this.entityManager.add(this.player);
 
-    // Determine if we have a real character sprite loaded
+    // ── Dog NPC ───────────────────────────────────────
+    this.spawnDogNPC();
+
+    // ── State manager ─────────────────────────────────
+    this.stateManager = new GameStateManager();
+    this.stateManager.push(new PlayingState(this));
+
+    // Snap camera to player
+    const playerWorld = isoToScreen(this.player.transform.x, this.player.transform.y);
+    this.camera.follow(playerWorld.x, playerWorld.y);
+    this.camera.snap();
+  }
+
+  // ─── Player animation registration ─────────────────────────
+
+  private registerPlayerAnimations(): void {
     const hasRealChar = assetLoader.has('char_idle');
-
-    // All 8 directions (4 cardinal + 4 diagonal)
-    const directions = [
-      'south', 'north', 'east', 'west',
-      'south_east', 'south_west', 'north_east', 'north_west',
-    ];
-
-    // Helper: derive frame count from sheet width / frame width
-    const frameCountOf = (assetId: string, frameW: number): number => {
-      const size = assetLoader.getSize(assetId);
-      if (!size) return 1;
-      return Math.max(1, Math.floor(size.width / frameW));
-    };
-
-    // Register player animations (frameWidth/Height = source pixel size)
-    for (const dir of directions) {
+    for (const dir of ALL_DIRECTIONS) {
       if (hasRealChar) {
-        // Idle: use real idle sprite for all directions (single pose for now)
         const idleAsset = 'char_idle';
         const idleDef: AnimationDef = {
           assetId: idleAsset,
@@ -98,7 +126,6 @@ export class Game {
         };
         this.player.animController.addAnimation(`idle_${dir}`, idleDef);
 
-        // Walk: use direction-specific asset if loaded, otherwise fall back to idle
         const walkAssetId = `char_walk_${dir}`;
         const walkAsset = assetLoader.has(walkAssetId) ? walkAssetId : idleAsset;
         const walkDef: AnimationDef = {
@@ -111,36 +138,72 @@ export class Game {
         };
         this.player.animController.addAnimation(`walk_${dir}`, walkDef);
       } else {
-        // Fallback to procedural assets (only 4 cardinal directions available)
-        const procDir = dir.includes('_') ? dir.split('_')[0] : dir; // diagonal → nearest cardinal
+        const procDir = dir.includes('_') ? dir.split('_')[0] : dir;
         const procWalk = `char_walk_${procDir}`;
         const procIdle = `char_idle_${procDir}`;
-        const walkDef: AnimationDef = {
+        this.player.animController.addAnimation(`walk_${dir}`, {
           assetId: procWalk,
-          frameWidth: 32,
-          frameHeight: 48,
+          frameWidth: 32, frameHeight: 48,
           frameCount: frameCountOf(procWalk, 32),
-          frameRate: 8,
-          loop: true,
-        };
-        this.player.animController.addAnimation(`walk_${dir}`, walkDef);
-        const idleDef: AnimationDef = {
+          frameRate: 8, loop: true,
+        });
+        this.player.animController.addAnimation(`idle_${dir}`, {
           assetId: procIdle,
-          frameWidth: 32,
-          frameHeight: 48,
+          frameWidth: 32, frameHeight: 48,
           frameCount: frameCountOf(procIdle, 32),
-          frameRate: 1,
-          loop: true,
-        };
-        this.player.animController.addAnimation(`idle_${dir}`, idleDef);
+          frameRate: 1, loop: true,
+        });
       }
     }
-    this.player.animController.play('idle_south');
+  }
 
-    // Snap camera to player
-    const playerWorld = isoToScreen(this.player.transform.x, this.player.transform.y);
-    this.camera.follow(playerWorld.x, playerWorld.y);
-    this.camera.snap();
+  // ─── Dog NPC creation ──────────────────────────────────────
+
+  private spawnDogNPC(): void {
+    const dog = new NPC('dog', {
+      spawnCol: Config.DOG_SPAWN_COL,
+      spawnRow: Config.DOG_SPAWN_ROW,
+      targetCol: Config.DOG_TARGET_COL,
+      targetRow: Config.DOG_TARGET_ROW,
+      speed: Config.DOG_SPEED,
+      fadeDuration: Config.DOG_FADE_DURATION,
+      dialogId: 'dog_greeting',
+    });
+
+    // Draw scale based on idle frame height
+    dog.drawScale = Config.DOG_DRAW_H / Config.DOG_IDLE_SRC_H;
+
+    // Blob shadow (smaller than player)
+    dog.blobShadow = { rx: 14, ry: 7, opacity: 0.3 };
+
+    // Register all 8 directions → same walk/idle asset (dog only has one facing)
+    const walkAsset = 'dog_walk_west';
+    const idleAsset = 'dog_idle';
+    for (const dir of ALL_DIRECTIONS) {
+      if (assetLoader.has(walkAsset)) {
+        dog.animController.addAnimation(`walk_${dir}`, {
+          assetId: walkAsset,
+          frameWidth: Config.DOG_WALK_SRC_W,
+          frameHeight: Config.DOG_WALK_SRC_H,
+          frameCount: frameCountOf(walkAsset, Config.DOG_WALK_SRC_W),
+          frameRate: 6,
+          loop: true,
+        });
+      }
+      if (assetLoader.has(idleAsset)) {
+        dog.animController.addAnimation(`idle_${dir}`, {
+          assetId: idleAsset,
+          frameWidth: Config.DOG_IDLE_SRC_W,
+          frameHeight: Config.DOG_IDLE_SRC_H,
+          frameCount: frameCountOf(idleAsset, Config.DOG_IDLE_SRC_W),
+          frameRate: 2,
+          loop: true,
+        });
+      }
+    }
+    dog.animController.play('walk_south_west');
+
+    this.entityManager.add(dog);
   }
 
   start(): void {
@@ -162,28 +225,146 @@ export class Game {
     const dt = Math.min((timestamp - this.lastTimestamp) / 1000, 0.1);
     this.lastTimestamp = timestamp;
 
-    this.update(dt);
-    this.render(dt);
+    this.stateManager.update(dt);
+    this.stateManager.render(dt);
 
     requestAnimationFrame(this.loop);
   };
 
-  private update(dt: number): void {
-    this.player.handleInput(this.input);
-    this.physics.update(dt, [this.player]);
-    this.animationSystem.update(dt, [this.player]);
+  /** @internal — called by PlayingState */
+  _update(dt: number): void {
+    this.player.handleInput(this.inputManager);
+    const entities = this.entityManager.getAll();
 
+    this.physics.update(dt, entities);
+
+    // Update NPC behaviours (after physics for immediate arrival detection)
+    for (const e of entities) {
+      if (e instanceof NPC) e.update(dt);
+    }
+
+    this.animationSystem.update(dt, entities);
+
+    // Camera
     const pw = isoToScreen(this.player.transform.x, this.player.transform.y);
     this.camera.follow(pw.x, pw.y);
     this.camera.update(dt);
 
+    eventBus.emit('player:moved', { x: this.player.transform.x, y: this.player.transform.y });
+
+    // NPC interaction (proximity prompt + E to talk)
+    this.updateInteraction();
+
     this.hud.update(dt, this.player, this.camera, this.tileMap);
+  }
+
+  // ─── NPC interaction ──────────────────────────────────────
+
+  private updateInteraction(): void {
+    const px = this.player.transform.x;
+    const py = this.player.transform.y;
+    const radius = Config.NPC_INTERACT_RADIUS;
+
+    // Find nearest interactable NPC within radius
+    let nearest: NPC | null = null;
+    let nearestDist = Infinity;
+
+    for (const e of this.entityManager.getAll()) {
+      if (!(e instanceof NPC) || !e.interactable) continue;
+      const dx = e.transform.x - px;
+      const dy = e.transform.y - py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= radius && dist < nearestDist) {
+        nearest = e;
+        nearestDist = dist;
+      }
+    }
+
+    // Show / hide "Press E to talk" prompt
+    this.interactPrompt.style.display = nearest ? '' : 'none';
+
+    // Edge-triggered E key → open dialog
+    const eDown = this.inputManager.isActionDown(Action.INTERACT);
+    if (eDown && !this.interactPrev && nearest) {
+      this.openDialog(nearest);
+    }
+    this.interactPrev = eDown;
+  }
+
+  private openDialog(npc: NPC): void {
+    const tree = getDialogTree(npc.dialogId);
+    if (!tree) return;
+
+    this.interactPrompt.style.display = 'none';
+
+    const dialogState = new DialogState(tree, this.dialogUI, () => {
+      this.stateManager.pop();
+    });
+    this.stateManager.push(dialogState);
+  }
+
+  // ─── Interactable markers (DOM overlays) ─────────────────────
+
+  private updateInteractMarkers(): void {
+    const cam = this.camera;
+    const zoom = cam.zoom;
+    const active = new Set<string>();
+
+    for (const e of this.entityManager.getAll()) {
+      if (!(e instanceof NPC) || !e.interactable) continue;
+      active.add(e.id);
+
+      // Get or create the DOM element
+      let el = this.interactMarkers.get(e.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'interact-marker';
+        // Pixel-art downward arrow: 7×5 grid scaled up to 14×10
+        el.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="10" viewBox="0 0 7 5" shape-rendering="crispEdges">' +
+          '<rect x="1" y="0" width="5" height="1" fill="#ED8312"/>' +
+          '<rect x="2" y="1" width="3" height="1" fill="#ED8312"/>' +
+          '<rect x="3" y="2" width="1" height="1" fill="#ED8312"/>' +
+          '<rect x="0" y="0" width="1" height="1" fill="#B5620D"/>' +
+          '<rect x="6" y="0" width="1" height="1" fill="#B5620D"/>' +
+          '<rect x="1" y="1" width="1" height="1" fill="#B5620D"/>' +
+          '<rect x="5" y="1" width="1" height="1" fill="#B5620D"/>' +
+          '<rect x="2" y="2" width="1" height="1" fill="#B5620D"/>' +
+          '<rect x="4" y="2" width="1" height="1" fill="#B5620D"/>' +
+          '<rect x="3" y="3" width="1" height="1" fill="#B5620D"/>' +
+          '</svg>';
+        document.getElementById('game-container')!.appendChild(el);
+        this.interactMarkers.set(e.id, el);
+      }
+
+      // Position: world → screen, offset upward by sprite height
+      const iso = isoToScreen(e.transform.x, e.transform.y);
+      const screen = cam.worldToScreen(iso.x, iso.y);
+      const spriteH = (e.animController?.getCurrentFrame().height ?? 0) * e.drawScale;
+      const bob = Math.sin(this.elapsed * 3) * 3;
+
+      // Scale marker proportionally with zoom, clamped to min/max
+      const markerScale = Math.min(1.6, Math.max(0.6, zoom * 0.8));
+
+      el.style.left = `${screen.x}px`;
+      el.style.top = `${screen.y + (-spriteH + Config.TILE_HEIGHT / 2) * zoom - 8 + bob}px`;
+      el.style.transform = `translateX(-50%) scale(${markerScale})`;
+      el.style.display = '';
+    }
+
+    // Hide markers for entities that are no longer interactable
+    for (const [id, el] of this.interactMarkers) {
+      if (!active.has(id)) {
+        el.style.display = 'none';
+      }
+    }
   }
 
   /** Track L-key toggle (edge-triggered, not held) */
   private lightTogglePrev = false;
 
-  private render(dt: number): void {
+  /** @internal — called by PlayingState */
+  _render(dt: number): void {
     this.elapsed += dt;
     this.renderer.clear();
 
@@ -208,8 +389,10 @@ export class Game {
       );
     }
 
-    // Enqueue player
-    this.renderer.enqueueEntity(this.player);
+    // Enqueue all entities (player + NPCs)
+    for (const entity of this.entityManager.getAll()) {
+      this.renderer.enqueueEntity(entity);
+    }
 
     // 1) Draw ground tiles
     this.renderer.flushLayer(RenderLayer.GROUND);
@@ -218,14 +401,17 @@ export class Game {
     this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows, 'back');
     this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'back');
 
-    // 3) Blob shadow under the player (on ground, before objects)
-    const pIsoShadow = isoToScreen(this.player.transform.x, this.player.transform.y);
-    this.renderer.drawBlobShadow(
-      pIsoShadow.x, pIsoShadow.y,
-      Config.PLAYER_BLOB_SHADOW_RX,
-      Config.PLAYER_BLOB_SHADOW_RY,
-      Config.PLAYER_BLOB_SHADOW_OPACITY,
-    );
+    // 3) Blob shadows for all entities that have them
+    for (const entity of this.entityManager.getAll()) {
+      const bs = entity.blobShadow;
+      if (!bs) continue;
+      const iso = isoToScreen(entity.transform.x, entity.transform.y);
+      this.renderer.drawBlobShadow(
+        iso.x, iso.y,
+        bs.rx, bs.ry,
+        bs.opacity * entity.opacity,
+      );
+    }
 
     // 4) Draw objects & entities
     this.renderer.flushLayer(RenderLayer.OBJECT);
@@ -237,13 +423,13 @@ export class Game {
     // 6) Snowfall — 3D world-space particles drawn over the scene, before post-process
     this.renderer.drawSnow(this.tileMap.cols, this.tileMap.rows, dt, this.elapsed);
 
-    // Debug grid overlay (hold G)
-    if (this.input.isDown('KeyG')) {
+    // Debug grid overlay (hold action)
+    if (this.inputManager.isActionDown(Action.DEBUG_GRID)) {
       this.renderer.drawGridOverlay(this.tileMap.cols, this.tileMap.rows);
     }
 
-    // Toggle lighting with L (edge-triggered)
-    const lDown = this.input.isDown('KeyL');
+    // Toggle lighting (edge-triggered)
+    const lDown = this.inputManager.isActionDown(Action.TOGGLE_LIGHT);
     if (lDown && !this.lightTogglePrev) {
       this.postProcess.enabled = !this.postProcess.enabled;
     }
@@ -383,5 +569,26 @@ export class Game {
 
       this.postProcess.render(dt);
     }
+
+    // Interactable markers — positioned as DOM overlays so they aren't dimmed by post-process
+    this.updateInteractMarkers();
+  }
+}
+
+// ─── PlayingState ───────────────────────────────────────────────
+// Default state — delegates to Game's update/render.
+// Future states (DialogState, PauseState, etc.) will implement their own logic.
+
+class PlayingState extends GameState {
+  constructor(private game: Game) {
+    super();
+  }
+
+  update(dt: number): void {
+    this.game._update(dt);
+  }
+
+  render(dt: number): void {
+    this.game._render(dt);
   }
 }

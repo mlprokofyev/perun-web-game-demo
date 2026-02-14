@@ -1,0 +1,24 @@
+{
+  "assets": [
+    { "id": "tile_grass",              "path": "/assets/sprites/tiles/ground_snow_thick.png" },
+
+    { "id": "char_idle",               "path": "/assets/sprites/characters/player_idle.png" },
+    { "id": "char_walk_south",         "path": "/assets/sprites/characters/player_walk_south.png" },
+    { "id": "char_walk_north",         "path": "/assets/sprites/characters/player_walk_north.png" },
+    { "id": "char_walk_east",          "path": "/assets/sprites/characters/player_walk_east.png" },
+    { "id": "char_walk_west",          "path": "/assets/sprites/characters/player_walk_west.png" },
+    { "id": "char_walk_south_east",    "path": "/assets/sprites/characters/player_walk_south_east.png" },
+    { "id": "char_walk_south_west",    "path": "/assets/sprites/characters/player_walk_south_west.png" },
+    { "id": "char_walk_north_east",    "path": "/assets/sprites/characters/player_walk_north_east.png" },
+    { "id": "char_walk_north_west",    "path": "/assets/sprites/characters/player_walk_north_west.png" },
+
+    { "id": "obj_tree_med_snow",       "path": "/assets/sprites/objects/tree_snow_med_1.png" },
+    { "id": "obj_tree_big",            "path": "/assets/sprites/objects/tree_big.png" },
+    { "id": "obj_tree_snow_big_1",     "path": "/assets/sprites/objects/tree_snow_big_1.png" },
+    { "id": "obj_stone",               "path": "/assets/sprites/objects/stone_on_grass.png" },
+    { "id": "obj_house",               "path": "/assets/sprites/objects/house_2_snow.png" },
+
+    { "id": "dog_walk_west",           "path": "/assets/sprites/characters/dog_walk_west.png" },
+    { "id": "dog_idle",                "path": "/assets/sprites/characters/dog_idle.png" }
+  ]
+}

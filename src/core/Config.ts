@@ -12,9 +12,21 @@ export const Config = {
   TARGET_FPS: 60,
   FRAME_TIME: 1000 / 60,
 
+  /** Tile image dimensions (matches PNG asset — full image, not grid spacing) */
+  TILE_IMG_W: 218,
+  TILE_IMG_H: 125,
+
+  /** Character sprite source dimensions (must match the actual PNG frame size) */
+  CHAR_SRC_W: 113,
+  CHAR_SRC_H: 218,
+
+  /** Desired on-screen draw height in world pixels.
+   *  Adjust to make the character bigger or smaller on the map. */
+  CHAR_DRAW_H: 128,
+
   /** Player defaults */
-  PLAYER_START_COL: 2.1,
-  PLAYER_START_ROW: 3.4,
+  PLAYER_START_COL: 1.3,
+  PLAYER_START_ROW: 2.8,
   PLAYER_SPEED: 80,   // pixels per second in world space
   PLAYER_RUN_MULT: 1.8,
 
@@ -22,7 +34,7 @@ export const Config = {
   CAMERA_ZOOM_MIN: 0.85,
   CAMERA_ZOOM_MAX: 5,
   CAMERA_ZOOM_STEP: 0.25,
-  CAMERA_DEFAULT_ZOOM: 1.5,
+  CAMERA_DEFAULT_ZOOM: 1.25,
 
   /** World (reduced to keep approx same visual extent with larger tiles) */
   MAP_COLS: 6,
@@ -113,6 +125,24 @@ export const Config = {
   SNOW_DEPTH_LAYERS: 10,         // number of parallax depth layers (1=flat, 3-5=rich depth)
   SNOW_MAX_HEIGHT: 500,         // max height above ground plane (world px)
   SNOW_SPAWN_PADDING: 2,        // extra grid cells beyond map edges for flake spawning
+
+  /** Dog NPC — sprite source dimensions (from actual PNGs) */
+  DOG_WALK_SRC_W: 172,   // 688 / 4 frames
+  DOG_WALK_SRC_H: 96,
+  DOG_IDLE_SRC_W: 123,   // 492 / 4 frames
+  DOG_IDLE_SRC_H: 123,
+  DOG_DRAW_H: 80,        // desired on-screen draw height (reference = idle frame)
+
+  /** Dog NPC — behavior */
+  DOG_SPEED: 60,          // world px/s
+  DOG_SPAWN_COL: 5.7,
+  DOG_SPAWN_ROW: 1.2,
+  DOG_TARGET_COL: 3.0,
+  DOG_TARGET_ROW: 3.7,
+  DOG_FADE_DURATION: 2.0, // seconds to go from transparent to opaque
+
+  /** NPC interaction */
+  NPC_INTERACT_RADIUS: 1.2,  // grid units — distance within which "Press E" shows
 
   /** Debug */
   DEBUG: true,
