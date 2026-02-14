@@ -1,3 +1,5 @@
+import type { Direction } from '../core/Types';
+
 export interface AnimationDef {
   assetId: string;
   frameWidth: number;
@@ -13,7 +15,7 @@ export class AnimationController {
   private currentKey: string = '';
   private currentFrame: number = 0;
   private elapsed: number = 0;
-  private lastDirection: string = 'south';
+  private lastDirection: Direction = 'south';
 
   /** When true, frame advancement is paused (player stopped but not yet idle) */
   private frozen: boolean = false;
@@ -83,7 +85,7 @@ export class AnimationController {
     }
   }
 
-  private velocityToDirection(vx: number, vy: number): string {
+  private velocityToDirection(vx: number, vy: number): Direction {
     const angle = ((Math.atan2(vy, vx) * 180) / Math.PI + 360) % 360;
     // Map angles to 8 directions (45° sectors)
     if (angle >= 337.5 || angle < 22.5) return 'east';
@@ -111,7 +113,7 @@ export class AnimationController {
     };
   }
 
-  getDirection(): string {
+  getDirection(): Direction {
     return this.lastDirection;
   }
 }
