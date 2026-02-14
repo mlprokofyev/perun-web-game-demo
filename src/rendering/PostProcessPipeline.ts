@@ -155,18 +155,49 @@ void main() {
         }
 
         /* Height fade: tall entities see over ground-level shadows.
-           Within the sprite zone, lerp shadow toward 1.0 from feet to head. */
+           Uses actual sprite alpha to confine the effect to the player's
+           visible body — transparent area around the sprite is untouched.
+
+           Direction-aware: in isometric view, "behind the player" means the
+           light source is above the feet in GL Y (farther from the camera).
+           When the light is behind, the face should stay in shadow, so we
+           reduce the height-fade strength via frontFac. */
         if (u_hfActive > 0) {
-            float dx = abs(fragPos.x - u_hfFootPos.x);
-            float dy = fragPos.y - u_hfFootPos.y;  /* positive = above feet in GL */
+            float hfMask = 0.0;
 
-            /* soft horizontal containment */
-            float hx = 1.0 - smoothstep(u_hfWidth * 0.1, u_hfWidth * 0.85, dx);
-            /* vertical: 0 at feet, peaks mid-sprite, 0 above head */
-            float hy = smoothstep(0.0, u_hfHeight * 0.8, dy)
-                     * (1.0 - smoothstep(u_hfHeight * 0.6, u_hfHeight * 1.2, dy));
+            if (u_volActive > 0) {
+                /* Precise path: sample sprite alpha texture */
+                vec2 sprMin  = u_spriteRect.xy;
+                vec2 sprSize = u_spriteRect.zw;
+                vec2 lp = fragPos - sprMin;
+                if (lp.x >= 0.0 && lp.x <= sprSize.x &&
+                    lp.y >= 0.0 && lp.y <= sprSize.y) {
+                    vec2 luv   = lp / sprSize;
+                    vec2 srcUV = u_spriteSrcUV.xy + luv * u_spriteSrcUV.zw;
+                    hfMask = spriteAlpha(srcUV);
+                }
+            } else {
+                /* Fallback: soft rectangular containment (no sprite tex) */
+                float dx = abs(fragPos.x - u_hfFootPos.x);
+                hfMask = 1.0 - smoothstep(u_hfWidth * 0.1, u_hfWidth * 1.0, dx);
+            }
 
-            shadow = mix(shadow, 1.0, hx * hy * u_hfStrength);
+            if (hfMask > 0.1) {
+                float dy = fragPos.y - u_hfFootPos.y;  /* positive = above feet in GL */
+                /* vertical: 0 at feet, peaks mid-sprite, 0 above head */
+                float hy = smoothstep(0.0, u_hfHeight * 1.0, dy)
+                         * (1.0 - smoothstep(u_hfHeight * 0.8, u_hfHeight * 0.9, dy));
+
+                /* Isometric facing factor — infer depth from screen position.
+                   In isometric: higher GL Y = top of screen = farther from camera.
+                   Derive a pseudo-Z: negative Y (light below = in front) → positive Z;
+                   positive Y (light above = behind) → negative Z. */
+                vec2  hlDir = u_lightPos[i] - vec2(u_hfFootPos.x, u_hfFootPos.y + u_hfHeight * 0.5);
+                float isoZ  = -hlDir.y + abs(hlDir.x) * 0.3;
+                float frontFac = smoothstep(-80.0, 80.0, isoZ);
+
+                shadow = mix(shadow, 1.0, hfMask * hy * u_hfStrength * frontFac);
+            }
         }
 
         light += u_lightColor[i] * u_lightIntensity[i] * atten * flicker * shadow;
@@ -190,11 +221,16 @@ void main() {
                 vec3 N = normalize(vec3(nx, 0.0, nz));
 
                 /* 3D light direction from sky light (index 0).
-                   Screen XY gives horizontal direction; fake a Z from distance
-                   so the light feels elevated. */
+                   In isometric, higher GL Y = farther from camera = "behind".
+                   Infer Z from the Y component: light below sprite → Z positive
+                   (in front), light above → Z negative (behind).
+                   The X component adds a side-light bias so horizontal
+                   lights don't collapse to Z=0. */
                 vec2  toLight  = u_lightPos[0] - fragPos;
-                float sDist    = length(toLight);
-                vec3  L        = normalize(vec3(toLight, max(sDist * 0.5, 200.0)));
+                float isoLZ   = -toLight.y + abs(toLight.x) * 0.3;
+                /* Minimum magnitude prevents degenerate normalisation */
+                isoLZ = sign(isoLZ) * max(abs(isoLZ), 50.0);
+                vec3  L        = normalize(vec3(toLight, isoLZ));
                 float NdotL    = dot(N, L);
 
                 /* Half-Lambert diffuse — never fully dark */
