@@ -22,9 +22,13 @@
 │  │ (Canvas2D) │  │  System    │  │                          │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
-│  │  Input     │  │  PostProc  │  │  Effects (Snow, Fog)     │ │
-│  │  Manager   │  │  (WebGL2)  │  │                          │ │
+│  │  Input     │  │  PostProc  │  │  Effects (Snow, Fog,     │ │
+│  │  Manager   │  │  (WebGL2)  │  │  FireLight)              │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
+│  ┌────────────┐                                                │
+│  │  Lighting  │  ← Day/night profiles, smooth transitions      │
+│  │  Profile   │                                                │
+│  └────────────┘                                                │
 │                                                                 │
 │  Core Systems Layer                                             │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
@@ -54,8 +58,13 @@ User Input → InputSystem → InputManager (action mapping)
                           AnimationSystem.update()
                                 ↓
                           NPC.update() (walk-to, fade-in)
+                          Campfire.updateSparks()
                                 ↓
                           Interaction check (proximity)
+                                ↓
+                          Toggle checks (snow, day/night, lighting)
+                                ↓
+                          applyLightingProfile() → PostProcess + Renderer
                                 ↓
                           Renderer.enqueue() → Z-sort → Canvas draw
                                 ↓
@@ -123,6 +132,7 @@ class Entity {
 |------|-----------|---------|
 | **Player** | velocity ✓, collider ✓ (solid), animController ✓, blobShadow ✓ | Player-controlled character |
 | **NPC** | velocity ✓, collider ✓ (solid when idle), animController ✓, blobShadow ✓ | Walk-to behavior, dialog interaction |
+| **Campfire** | collider ✓ (solid), animController ✓, blobShadow ✓ | Animated fire with spark particles, gated by lighting profile |
 
 ### EntityManager
 
@@ -218,6 +228,8 @@ Two layers:
 | `RUN` | `Shift` | Sprint modifier |
 | `INTERACT` | `E` | Talk to NPC / interact |
 | `TOGGLE_LIGHT` | `L` | Toggle post-processing |
+| `TOGGLE_SNOW` | `N` | Toggle snowfall |
+| `TOGGLE_TIME` | `T` | Toggle day/night mode |
 | `DEBUG_GRID` | `G` | Show debug grid |
 | `PAUSE` | `Escape` | Pause / close dialog |
 
@@ -257,6 +269,22 @@ SPAWN (transparent, non-solid)
 ```
 
 The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING → IDLE`) and velocity aim.
+
+---
+
+## Campfire Entity
+
+`src/entities/Campfire.ts` — animated fire with a particle spark system.
+
+- Renders using `AnimationController` with a procedurally generated sprite sheet (`campfire_anim`)
+- Also renders a static `obj_campfire` PNG on the ground layer (beneath the player)
+- Manages its own `sparks` array — particles that rise, drift, and fade
+- Has a solid `Collider` (configurable `hw`/`hh`)
+- `opacity` is driven by `LightingProfile.fireOpacity` for smooth day/night transitions
+
+### Spark Particles
+
+Each spark has: position offset (`ox`, `oy`), velocity (`vx`, `vy`), `life`/`maxLife`, `radius`, `hue` (orange→yellow gradient). Rendered with a radial gradient glow + solid pixel in `Game.drawCampfireSparks()`.
 
 ---
 
@@ -352,12 +380,24 @@ All tunable constants are centralized in `src/core/Config.ts` as a single `const
 - Character sprite dimensions and scaling
 - Player defaults (position, speed, run multiplier)
 - Camera (zoom range, default zoom)
-- Lighting (ambient, sky light, window light)
+- Lighting (ambient, sky light, window light — used as initial values; overridden by lighting profiles at runtime)
 - Shadows (radius, offset, length multiplier, height fade)
 - Volumetric shading (diffuse, rim light)
 - Fog (boundary padding, wisp parameters)
 - Snowfall (particle count, speed, wind, layers)
 - Dog NPC (sprite dimensions, speed, spawn/target position, fade duration)
+- Campfire (position, draw height, light color/radius/intensity, shadow radius)
 - Interaction (NPC interact radius)
+
+### Lighting Profiles
+
+Runtime lighting state is managed by `LightingProfile` objects (`src/rendering/LightingProfile.ts`), not raw `Config` values. Two presets are defined:
+
+| Profile | Ambient | Background | Shadows | Point Lights | Fire |
+|---------|---------|------------|---------|--------------|------|
+| `NIGHT_PROFILE` | Dark blue (0.18, 0.22, 0.38) | Deep navy | Long, full opacity | On | On |
+| `DAY_PROFILE` | Bright neutral (0.95, 0.95, 0.95) | Sky blue | Short, faint (0.25 opacity) | Off | Off |
+
+Profiles are lerped with ease-in-out over 1.5 seconds when toggled with `T`. See `docs/rendering.md` for full details.
 
 See `src/core/Config.ts` for the full list with inline documentation.

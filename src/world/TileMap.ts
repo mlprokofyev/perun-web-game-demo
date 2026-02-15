@@ -25,6 +25,13 @@ export interface WorldObject {
   solidRows?: number;
   /** Shadow-casting radius in asset pixels (default: width * 0.15). Set 0 to disable shadow. */
   shadowRadius?: number;
+  /** Shadow-casting height in world pixels (controls shadow length).
+   *  Defaults to draw height. Set low for ground-level objects (short shadows). */
+  shadowHeight?: number;
+  /** If true, render on the GROUND layer (beneath all entities). Default false (OBJECT layer). */
+  groundLayer?: boolean;
+  /** Rotation in degrees (applied around sprite center). Default 0. */
+  rotation?: number;
   /** Multiple shadow circles for complex shapes (overrides shadowRadius).
    *  Each entry is { dx, dy } in grid-coordinate offsets from (col, row) + radius in asset px. */
   shadowPoints?: Array<{ dx: number; dy: number; radius: number }>;
