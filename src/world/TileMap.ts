@@ -6,6 +6,8 @@ export interface TileDef {
 }
 
 export interface WorldObject {
+  /** Optional unique id for programmatic lookup / removal. */
+  id?: string;
   col: number;
   row: number;
   assetId: string;
@@ -98,5 +100,15 @@ export class TileMap {
 
   addObject(obj: WorldObject): void {
     this.objects.push(obj);
+  }
+
+  /** Remove a world object by its optional `id` field. Returns true if found. */
+  removeObjectById(id: string): boolean {
+    const idx = this.objects.findIndex(o => o.id === id);
+    if (idx >= 0) {
+      this.objects.splice(idx, 1);
+      return true;
+    }
+    return false;
   }
 }

@@ -419,6 +419,197 @@ function makeCampfireSheet(): HTMLCanvasElement {
   return c;
 }
 
+// ─── Item icon + world sprites (procedural placeholders) ────────
+
+/** 24×24 inventory icon: brown stick diagonal */
+function makeItemStick(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(24, 24);
+  ctx.strokeStyle = '#8B6914';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(4, 20);
+  ctx.lineTo(20, 4);
+  ctx.stroke();
+  ctx.strokeStyle = '#A67C00';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(5, 19);
+  ctx.lineTo(19, 5);
+  ctx.stroke();
+  return c;
+}
+
+/** 32×32 world sprite: stick on the ground */
+function makeItemStickWorld(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(32, 32);
+  ctx.strokeStyle = '#8B6914';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(4, 26);
+  ctx.lineTo(28, 6);
+  ctx.stroke();
+  ctx.strokeStyle = '#A67C00';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(5, 25);
+  ctx.lineTo(27, 7);
+  ctx.stroke();
+  return c;
+}
+
+/** 24×24 inventory icon: white bone */
+function makeItemBone(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(24, 24);
+  ctx.fillStyle = '#E8E0D0';
+  // Bone shaft
+  ctx.save();
+  ctx.translate(12, 12);
+  ctx.rotate(-Math.PI / 4);
+  ctx.fillRect(-9, -2, 18, 4);
+  // Knobs at each end
+  ctx.beginPath();
+  ctx.arc(-9, -2, 3, 0, Math.PI * 2);
+  ctx.arc(-9, 2, 3, 0, Math.PI * 2);
+  ctx.arc(9, -2, 3, 0, Math.PI * 2);
+  ctx.arc(9, 2, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  return c;
+}
+
+/** 32×32 world sprite: bone */
+function makeItemBoneWorld(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(32, 32);
+  ctx.fillStyle = '#E8E0D0';
+  ctx.save();
+  ctx.translate(16, 16);
+  ctx.rotate(-Math.PI / 5);
+  ctx.fillRect(-12, -2, 24, 5);
+  ctx.beginPath();
+  ctx.arc(-12, -2, 4, 0, Math.PI * 2);
+  ctx.arc(-12, 3, 4, 0, Math.PI * 2);
+  ctx.arc(12, -2, 4, 0, Math.PI * 2);
+  ctx.arc(12, 3, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  return c;
+}
+
+/** 24×24 inventory icon: grey stone */
+function makeItemStone(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(24, 24);
+  ctx.fillStyle = '#888';
+  ctx.beginPath();
+  ctx.ellipse(12, 14, 9, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#AAA';
+  ctx.beginPath();
+  ctx.ellipse(11, 12, 6, 4, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  return c;
+}
+
+/** 24×24 inventory icon: glowing ancient ember */
+function makeItemAncientEmber(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(24, 24);
+  // Outer glow
+  const glow = ctx.createRadialGradient(12, 12, 2, 12, 12, 11);
+  glow.addColorStop(0, 'rgba(255, 180, 40, 0.6)');
+  glow.addColorStop(0.5, 'rgba(255, 100, 20, 0.3)');
+  glow.addColorStop(1, 'rgba(255, 50, 0, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 24, 24);
+  // Crystal body
+  ctx.fillStyle = '#FF6B1A';
+  ctx.beginPath();
+  ctx.moveTo(12, 3);
+  ctx.lineTo(18, 10);
+  ctx.lineTo(16, 19);
+  ctx.lineTo(8, 19);
+  ctx.lineTo(6, 10);
+  ctx.closePath();
+  ctx.fill();
+  // Inner highlight
+  ctx.fillStyle = '#FFAA44';
+  ctx.beginPath();
+  ctx.moveTo(12, 5);
+  ctx.lineTo(15, 10);
+  ctx.lineTo(14, 16);
+  ctx.lineTo(10, 16);
+  ctx.lineTo(9, 10);
+  ctx.closePath();
+  ctx.fill();
+  // Hot core
+  ctx.fillStyle = '#FFD080';
+  ctx.beginPath();
+  ctx.ellipse(12, 11, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Spark dots
+  ctx.fillStyle = '#FFF0C0';
+  ctx.fillRect(11, 8, 2, 2);
+  ctx.fillRect(13, 12, 1, 1);
+  return c;
+}
+
+/** 32×32 world sprite: glowing ancient ember */
+function makeItemAncientEmberWorld(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(32, 32);
+  // Outer glow
+  const glow = ctx.createRadialGradient(16, 16, 3, 16, 16, 15);
+  glow.addColorStop(0, 'rgba(255, 180, 40, 0.5)');
+  glow.addColorStop(0.5, 'rgba(255, 100, 20, 0.25)');
+  glow.addColorStop(1, 'rgba(255, 50, 0, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 32, 32);
+  // Crystal body
+  ctx.fillStyle = '#FF6B1A';
+  ctx.beginPath();
+  ctx.moveTo(16, 4);
+  ctx.lineTo(24, 13);
+  ctx.lineTo(21, 25);
+  ctx.lineTo(11, 25);
+  ctx.lineTo(8, 13);
+  ctx.closePath();
+  ctx.fill();
+  // Inner highlight
+  ctx.fillStyle = '#FFAA44';
+  ctx.beginPath();
+  ctx.moveTo(16, 7);
+  ctx.lineTo(21, 13);
+  ctx.lineTo(19, 22);
+  ctx.lineTo(13, 22);
+  ctx.lineTo(11, 13);
+  ctx.closePath();
+  ctx.fill();
+  // Hot core
+  ctx.fillStyle = '#FFD080';
+  ctx.beginPath();
+  ctx.ellipse(16, 15, 4, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Spark dots
+  ctx.fillStyle = '#FFF0C0';
+  ctx.fillRect(15, 10, 2, 2);
+  ctx.fillRect(17, 15, 2, 2);
+  ctx.fillRect(13, 14, 1, 1);
+  return c;
+}
+
+/** 32×32 world sprite: stone */
+function makeItemStoneWorld(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(32, 32);
+  ctx.fillStyle = '#888';
+  ctx.beginPath();
+  ctx.ellipse(16, 18, 12, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#AAA';
+  ctx.beginPath();
+  ctx.ellipse(14, 15, 8, 5, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  return c;
+}
+
 /**
  * Generate and register all procedural placeholder assets.
  * These will be used until real PNG files are placed in /public/assets/.
@@ -449,4 +640,22 @@ export function generateProceduralAssets(): void {
 
   // Campfire — animated sprite sheet
   assetLoader.registerCanvas('campfire_anim', makeCampfireSheet());
+
+  // Item collectible world sprites + inventory icons (procedural fallbacks)
+  if (!assetLoader.has('item_stick')) {
+    assetLoader.registerCanvas('item_stick', makeItemStick());
+    assetLoader.registerCanvas('item_stick_world', makeItemStickWorld());
+  }
+  if (!assetLoader.has('item_bone')) {
+    assetLoader.registerCanvas('item_bone', makeItemBone());
+    assetLoader.registerCanvas('item_bone_world', makeItemBoneWorld());
+  }
+  if (!assetLoader.has('item_stone')) {
+    assetLoader.registerCanvas('item_stone', makeItemStone());
+    assetLoader.registerCanvas('item_stone_world', makeItemStoneWorld());
+  }
+  if (!assetLoader.has('item_ancient_ember')) {
+    assetLoader.registerCanvas('item_ancient_ember', makeItemAncientEmber());
+    assetLoader.registerCanvas('item_ancient_ember_world', makeItemAncientEmberWorld());
+  }
 }

@@ -1,6 +1,6 @@
 # Architecture
 
-> Engine design, core systems, entity model, events, physics, input, game states.
+> Engine design, core systems, entity model, events, physics, input, game states, items, quests.
 
 ---
 
@@ -13,8 +13,19 @@
 │  Game Application Layer                                         │
 │  ┌────────────┐  ┌────────────────┐  ┌───────────────────────┐ │
 │  │  Game.ts   │  │ GameState      │  │  DialogState /        │ │
-│  │  (loop)    │  │ Manager        │  │  PlayingState         │ │
+│  │  (loop)    │  │ Manager        │  │  InventoryState /     │ │
+│  │            │  │                │  │  QuestLogState /      │ │
+│  │            │  │                │  │  ItemPreviewState     │ │
 │  └────────────┘  └────────────────┘  └───────────────────────┘ │
+│                                                                 │
+│  Item & Quest Layer                                             │
+│  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
+│  │ ItemDef    │  │ Inventory  │  │  QuestDef / QuestTracker │ │
+│  │ Registry   │  │            │  │                          │ │
+│  └────────────┘  └────────────┘  └──────────────────────────┘ │
+│  ┌────────────┐                                                │
+│  │ GameFlags  │  ← Persistent game state (booleans, counters)  │
+│  └────────────┘                                                │
 │                                                                 │
 │  Game Engine Layer                                              │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
@@ -38,6 +49,12 @@
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
 │  │  Config    │  │  TileMap   │  │  Isometric Grid          │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
+│                                                                 │
+│  UI Layer                                                       │
+│  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
+│  │  DialogUI  │  │ InventoryUI│  │  QuestLogUI /            │ │
+│  │            │  │            │  │  ItemPreviewUI / HUD     │ │
+│  └────────────┘  └────────────┘  └──────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,20 +74,26 @@ User Input → InputSystem → InputManager (action mapping)
                                 ↓
                           AnimationSystem.update()
                                 ↓
-                          NPC.update() (walk-to, fade-in)
+                          NPC.update() (re-aim steering, fade-in)
                           Campfire.updateSparks()
+                          Collectible.update() (bob, pickup anim, launch arc)
                                 ↓
-                          Interaction check (proximity)
+                          updateCollectibles() — auto-pickup, item preview trigger
+                          updateInteraction() — Press E dispatch
+                          updateCampfireInteractable() — dynamic enable/disable
+                          updateTriggerZones() — enter/exit events
+                          updatePendingEvents() — timed callbacks
                                 ↓
-                          Toggle checks (snow, day/night, lighting)
+                          Toggle checks (snow, day/night, lighting, inventory, quest log)
                                 ↓
                           applyLightingProfile() → PostProcess + Renderer
                                 ↓
                           Renderer.enqueue() → Z-sort → Canvas draw
+                          Floating text particles (world-to-screen)
                                 ↓
                           PostProcessPipeline.render() (WebGL2 lighting)
                                 ↓
-                          DOM overlays (dialog, markers)
+                          DOM overlays (dialog, inventory, quest log, item preview, markers, HUD)
 ```
 
 ---
@@ -121,6 +144,7 @@ class Entity {
   opacity: number;                // 0–1, for fade effects
   blobShadow: { rx, ry, opacity } | null;      // Per-entity ground shadow
   interactable: boolean;                        // Can player interact with this entity?
+  interactLabel: string;                        // Dynamic prompt text ("talk", "collect sticks", etc.)
   drawScale: number;                            // Sprite scaling factor
   layer: 'ground' | 'object' | 'character';    // Render layer hint
 }
@@ -131,8 +155,35 @@ class Entity {
 | Type | Components | Purpose |
 |------|-----------|---------|
 | **Player** | velocity ✓, collider ✓ (solid), animController ✓, blobShadow ✓ | Player-controlled character |
-| **NPC** | velocity ✓, collider ✓ (solid when idle), animController ✓, blobShadow ✓ | Walk-to behavior, dialog interaction |
-| **Campfire** | collider ✓ (solid), animController ✓, blobShadow ✓ | Animated fire with spark particles, gated by lighting profile |
+| **NPC** | velocity ✓, collider ✓ (solid when idle), animController ✓, blobShadow ✓ | Walk-to behavior with re-aim steering, dialog interaction |
+| **Campfire** | collider ✓ (solid), animController ✓, blobShadow ✓ | Animated fire with spark particles, burst() for dramatic effects |
+| **Collectible** | — | World item pickup with bob, pickup animation, parabolic launch arc |
+| **InteractableObject** | — | Invisible entity for press-E interactions on static objects (stick piles, campfire) |
+| **TriggerZone** | — | Invisible pass-through zone firing enter/exit events |
+
+### Collectible States
+
+```
+IDLE (bob animation, glow)
+  → player enters pickup radius →
+PICKING_UP (scale up + fade out)
+  → animation complete →
+DONE (removed by EntityManager)
+
+-- Or, for launched items: --
+LAUNCHING (parabolic arc from source to target)
+  → arc complete →
+IDLE (bob animation, glow)
+```
+
+### InteractableObject
+
+Generic invisible entity for press-E interactions on static world objects. Used for:
+
+- **Stick piles** — collect sticks, removes TileMap visual, depletes interactable
+- **Campfire** — dynamically enabled when player has 2 sticks + quest active, consumes sticks, triggers fire burst + secret item
+
+Options: `label`, `onInteract` callback, `radius`, `oneShot` flag.
 
 ### EntityManager
 
@@ -155,6 +206,8 @@ The `GameStateManager` (`src/core/GameState.ts`) maintains a stack of states. Th
 
 ```
 PLAYING → push DIALOG → (player frozen, game renders underneath) → pop → PLAYING
+PLAYING → push INVENTORY → (player frozen, game renders underneath) → pop → PLAYING
+PLAYING → push ITEM_PREVIEW → (player frozen, game renders underneath) → pop → PLAYING
 ```
 
 Each state defines:
@@ -172,6 +225,105 @@ Each state defines:
 |-------|-------------|---------------|---------|
 | `PlayingState` | No | No | Main gameplay — delegates to `Game._update()` / `Game._render()` |
 | `DialogState` | Yes | Yes | Displays dialog UI, pauses game logic, handles choice navigation |
+| `InventoryState` | Yes | Yes | Displays inventory UI overlay, toggled with I key |
+| `QuestLogState` | Yes | Yes | Displays quest log overlay, toggled with J key |
+| `ItemPreviewState` | Yes | Yes | Displays item discovery preview (icon, name, description). Triggered on pickup of non-stackable items. Dismisses with Enter/Space/ESC. |
+
+---
+
+## GameFlags
+
+Persistent game state singleton (`src/core/GameFlags.ts`). Stores arbitrary key-value pairs used by quests, dialog conditions, and item gating.
+
+| Method | Description |
+|--------|-------------|
+| `set(key, value)` | Set any value |
+| `get(key)` | Get value (returns `undefined` if unset) |
+| `getBool(key)` | Get boolean (defaults to `false`) |
+| `getNumber(key)` | Get number (defaults to `0`) |
+
+Used by:
+- Quest completion flags (`quest_gather_sticks_done`)
+- Campfire state (`sticks_in_fire`)
+- Dialog condition callbacks
+
+---
+
+## Item & Inventory System
+
+### Item Definitions (`src/items/ItemDef.ts`)
+
+```typescript
+interface ItemDef {
+  id: string;
+  name: string;
+  description: string;
+  iconAssetId: string;    // Procedural sprite id for UI
+  stackable: boolean;
+  maxStack: number;
+}
+```
+
+Built-in items: `stick`, `bone`, `stone`, `ancient_ember`.
+
+Items are registered via `registerItems()` and looked up via `getItemDef(id)`.
+
+### Inventory (`src/items/Inventory.ts`)
+
+Singleton managing the player's item collection.
+
+| Method | Description |
+|--------|-------------|
+| `add(itemId, count, source?)` | Add items. Returns count actually added. Emits `inventory:changed`. |
+| `remove(itemId, count)` | Remove items. Returns count actually removed. Emits `inventory:changed`. |
+| `has(itemId, count?)` | Check if player has at least `count` of an item |
+| `count(itemId)` | Get current count |
+| `getAll()` | All inventory entries |
+
+Source tracking prevents duplicate pickups from the same collectible entity.
+
+---
+
+## Quest System
+
+### Quest Definitions (`src/quests/QuestDef.ts`)
+
+```typescript
+interface QuestDef {
+  id: string;
+  title: string;
+  description: string;
+  objectives: QuestObjective[];
+  completionFlag: string;    // GameFlags key set on completion
+}
+
+interface QuestObjective {
+  description: string;
+  type: 'collect' | 'flag';
+  target: string;             // item id (collect) or flag key (flag)
+  required: number;
+}
+```
+
+Built-in quests: `q_gather_sticks` (collect sticks + feed campfire), `q_dog_bone` (find and give bone).
+
+### QuestTracker (`src/quests/QuestTracker.ts`)
+
+Runtime manager for quest state. Listens to EventBus events and auto-advances objectives.
+
+| Method | Description |
+|--------|-------------|
+| `startQuest(id)` | Activate a quest |
+| `getActiveQuests()` | All currently active quests |
+| `getCompletedQuests()` | All completed quests |
+| `checkFlags()` | Re-evaluate 'flag' type objectives against GameFlags |
+
+Event listeners:
+- `collectible:pickup` → advances 'collect' objectives
+- `inventory:changed` → re-checks 'collect' objectives
+- Internal `checkFlagObjectives()` → advances 'flag' objectives
+
+Emits: `quest:started`, `quest:completed`, `quest:objective_completed`, `quest:objective_progress`.
 
 ---
 
@@ -181,20 +333,26 @@ Typed pub/sub bus (`src/core/EventBus.ts`). All event names and payloads are com
 
 ```typescript
 interface GameEvents {
-  'entity:added':      { entity: Entity };
-  'entity:removed':    { entityId: string };
-  'player:moved':      { x: number; y: number };
-  'trigger:enter':     { zoneId: string; entityId: string };
-  'trigger:exit':      { zoneId: string; entityId: string };
-  'interaction:start': { targetId: string };
-  'interaction:end':   { targetId: string };
-  'dialog:open':       { dialogId: string; npcId: string };
-  'dialog:choice':     { dialogId: string; choiceIndex: number };
-  'dialog:close':      { dialogId: string };
-  'item:collected':    { itemId: string; entityId: string };
-  'inventory:changed': { items: string[] };
-  'scene:transition':  { from: string; to: string };
-  'input:action':      { action: string; state: 'pressed' | 'released' };
+  'entity:added':              { entity: Entity };
+  'entity:removed':            { entityId: string };
+  'player:moved':              { x: number; y: number };
+  'trigger:enter':             { zoneId: string; entityId: string };
+  'trigger:exit':              { zoneId: string; entityId: string };
+  'interaction:start':         { targetId: string };
+  'interaction:end':           { targetId: string };
+  'dialog:open':               { dialogId: string; npcId: string };
+  'dialog:choice':             { dialogId: string; choiceIndex: number };
+  'dialog:close':              { dialogId: string };
+  'item:collected':            { itemId: string; entityId: string };
+  'inventory:changed':         { itemId: string; count: number; total: number };
+  'collectible:pickup':        { collectibleId: string; itemId: string };
+  'scene:transition':          { from: string; to: string };
+  'input:action':              { action: string; state: 'pressed' | 'released' };
+  'quest:started':             { questId: string };
+  'quest:completed':           { questId: string };
+  'quest:failed':              { questId: string };
+  'quest:objective_completed': { questId: string; objectiveIndex: number };
+  'quest:objective_progress':  { questId: string; objectiveIndex: number; current: number; required: number };
 }
 ```
 
@@ -226,12 +384,14 @@ Two layers:
 | `MOVE_LEFT` | `A`, `←` | Movement |
 | `MOVE_RIGHT` | `D`, `→` | Movement |
 | `RUN` | `Shift` | Sprint modifier |
-| `INTERACT` | `E` | Talk to NPC / interact |
+| `INTERACT` | `E` | Talk to NPC / interact with objects |
 | `TOGGLE_LIGHT` | `L` | Toggle post-processing |
 | `TOGGLE_SNOW` | `N` | Toggle snowfall |
 | `TOGGLE_TIME` | `T` | Toggle day/night mode |
 | `DEBUG_GRID` | `G` | Show debug grid |
 | `PAUSE` | `Escape` | Pause / close dialog |
+| `INVENTORY` | `I` | Toggle inventory overlay |
+| `QUEST_LOG` | `J` | Toggle quest log overlay |
 
 Bindings can be changed at runtime via `inputManager.rebind(Action, codes[])`.
 
@@ -260,15 +420,15 @@ Bindings can be changed at runtime via `inputManager.rebind(Action, codes[])`.
 ```
 SPAWN (transparent, non-solid)
   → fade in over fadeDuration seconds
-  → walk toward (targetCol, targetRow)
-  → ARRIVE: snap to target, solid=true, interactable=true
+  → walk toward (targetCol, targetRow) with re-aim steering each frame
+  → ARRIVE: snap to target (overshoot guard), solid=true, interactable=true
   → idle animation + floating interact marker (SVG arrow)
   → player approaches within NPC_INTERACT_RADIUS → "Press E to talk"
   → player presses E → DialogState pushed
   → dialog completes / ESC → DialogState popped → PLAYING
 ```
 
-The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING → IDLE`) and velocity aim.
+The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING → IDLE`). Velocity is recomputed each frame to point at the target (seek steering), with an overshoot guard: `arrivalThreshold = max(0.1, stepSize)`.
 
 ---
 
@@ -281,6 +441,7 @@ The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING �
 - Manages its own `sparks` array — particles that rise, drift, and fade
 - Has a solid `Collider` (configurable `hw`/`hh`)
 - `opacity` is driven by `LightingProfile.fireOpacity` for smooth day/night transitions
+- `burst(duration)` — dramatically increases spark emission rate and max sparks for a timed period (used for campfire interaction feedback)
 
 ### Spark Particles
 
@@ -294,9 +455,9 @@ Three files cooperate:
 
 | File | Role |
 |------|------|
-| `src/dialog/DialogData.ts` | Data model (`DialogTree`, `DialogNode`, `DialogChoice`) + registry + sample dialog |
+| `src/dialog/DialogData.ts` | Data model (`DialogTree`, `DialogNode`, `DialogChoice`) + registry + quest-integrated dialog |
 | `src/ui/DialogUI.ts` | DOM-based UI rendering: speaker name, text, choice list, controls hint bar |
-| `src/states/DialogState.ts` | Game state: pauses gameplay, drives dialog node progression, handles input |
+| `src/states/DialogState.ts` | Game state: pauses gameplay, drives dialog node progression, filters choices, handles input |
 
 ### Dialog Data Model
 
@@ -316,8 +477,13 @@ interface DialogNode {
 interface DialogChoice {
   text: string;
   nextNodeId: string | null;  // null = end conversation
+  condition?: (flags: GameFlags, inventory: Inventory, quests: QuestTracker) => boolean;
+  onSelect?: (flags: GameFlags, inventory: Inventory, quests: QuestTracker) => void;
 }
 ```
+
+- **`condition`** — if present, the choice is only shown when `condition()` returns `true`. Evaluated each time the node is displayed.
+- **`onSelect`** — if present, called when the player selects the choice. Used for quest advancement, item transfers, flag setting.
 
 Dialogs are registered at import time via `registerDialog(tree)` and looked up by id via `getDialogTree(id)`.
 
@@ -332,11 +498,30 @@ Dialogs are registered at import time via `registerDialog(tree)` and looked up b
 
 ---
 
+## Item Preview Dialog
+
+`src/states/ItemPreviewState.ts` + `src/ui/ItemPreviewUI.ts` — a special overlay shown when the player discovers a non-stackable item (e.g., Ancient Ember).
+
+- **Trigger**: In `updateCollectibles()`, when a picked-up item has `stackable === false`, an `ItemPreviewState` is pushed.
+- **Display**: Centered overlay with dark scrim, item icon scaled to 64×64 with pixel-art rendering (`imageSmoothingEnabled = false`) and glow drop-shadow, item name, and description.
+- **Dismiss**: Enter, Space, or Escape. The state pops itself and the game resumes.
+
+---
+
+## Pending Events System
+
+A simple timer-based callback queue in `Game.ts`. Events are pushed with a `timer` (seconds) and a `callback`. Each frame, timers decrement; when expired, the callback fires and the event is removed.
+
+Used for:
+- Delayed secret item spawn after campfire fire burst (1.5s delay)
+
+---
+
 ## Asset Loading
 
 Boot sequence in `src/main.ts`:
 
-1. Generate procedural fallback assets (canvas-drawn placeholders)
+1. Generate procedural fallback assets (canvas-drawn placeholders + item icons + world sprites)
 2. Load asset manifest from `public/assets/data/assets.json`
 3. Load all PNGs listed in manifest — on success they override procedural versions
 4. Generate world and start the game loop

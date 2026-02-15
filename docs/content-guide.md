@@ -1,6 +1,6 @@
 # Content Guide
 
-> World coordinates, adding tiles, objects, animations, NPCs, and dialogs.
+> World coordinates, adding tiles, objects, animations, NPCs, dialogs, items, collectibles, and quests.
 
 ---
 
@@ -61,15 +61,15 @@ The game uses a **6x6 isometric grid**. Coordinates are (col, row) -- fractional
          2    | WIND |      | STIK2|      |      |      |
               |(1,2.8|      |(2.8, |      |      |      |
               +------+------+ 2.2) +------+------+------+
-         3    | STIKS|      |      |      | STONE| TREE |
-              |(0.5, |      |      |      |(4.8, |(4.7, |
-              + 3.1) +------+------+------+ 3.0) | 3.5) |
+         3    | STIKS|      |      |      | TREE2|      |
+              |(0.5, |      |      |      |(4.5, |      |
+              + 3.1) +------+------+------+ 3.1) +------+
          4    |      |      | FIRE |      |      |      |
               |      |      |(2.5, |      |      |      |
               +------+------+ 4.4) +------+------+------+
-         5    | TREE |      | PLR  |      |      |      |
-              |(0.7, |      |(1.1, |      |      |      |
-              | 4.7) |      | 2.8) |      |      |      |
+         5    | PINE |      | PLR  |      |      |      |
+              |(0.5, |      |(1.1, |      |      |      |
+              | 4.9) |      | 2.8) |      |      |      |
               +------+------+------+------+------+------+
 
   DOG: spawns at (5.7, 1.2), walks to (3.0, 3.7)
@@ -81,16 +81,15 @@ The game uses a **6x6 isometric grid**. Coordinates are (col, row) -- fractional
 |--------|-----------|-------|-----------|-------|--------|
 | House | (1.5, 1.5) | obj_house (house_2_snow.png) | 600x600 | 2x2 | 3x3+1 shadow grid |
 | Big tree | (3.5, 0.7) | obj_tree_snow_big_1 | 438x600 | 0.9x0.9 | radius 45 |
-| Med tree 1 | (0.7, 4.7) | obj_tree_med_snow | 438x600 | 0.9x0.9 | radius 35 |
-| Med tree 2 | (4.7, 3.5) | obj_tree_med_snow | 438x600 | 0.9x0.9 | radius 35 |
-| Stone | (4.8, 3.0) | obj_stone | 52x44 | No | radius 10 |
+| Med tree | (4.5, 3.1) | obj_tree_med_snow | 438x600 | 0.9x0.9 | radius 35 |
+| Pine tree | (0.5, 4.9) | obj_tree_pine_snow | 438x652 | 0.9x0.9 | radius 35 |
 | Campfire pit | (2.5, 4.4) | obj_campfire (campfire.png) | 140x90 | No (entity has collider) | radius 20, groundLayer |
-| Sticks snow 1 | (0.5, 3.1) | obj_sticks_snow (sticks_snow.png) | 130x80 | Yes (0.1x0.1) | None |
-| Sticks snow 2 | (2.8, 2.2) | obj_sticks_snow | 130x80 | Yes (0.6x0.4) | None |
+| Sticks snow 1 | (0.5, 3.1) | obj_sticks_snow (sticks_snow.png) | 130x80 | Yes (0.6x0.4) | None |
+| Sticks snow 2 | (2.8, 2.2) | obj_sticks_snow | 130x80 | Yes (0.1x0.1) | None |
 | Campfire entity | (2.5, 4.4) | campfire_anim (procedural) | 80px tall | Yes (collider 0.15x0.15) | Blob shadow |
 | Window light | (1.0, 2.8) | -- (point light) | -- | -- | -- |
 | Player spawn | (1.1, 2.8) | -- | -- | -- | radius 15 |
-| Dog NPC | (5.7->3.0, 1.2->3.7) | dog_walk_west / dog_idle | 80px tall | Yes (when idle) | -- |
+| Dog NPC | (5.7→3.0, 1.2→3.7) | dog_walk_west / dog_idle | 64px tall | Yes (when idle) | -- |
 
 ### Positioning Tips
 
@@ -151,6 +150,7 @@ tileMap.addObject({
   // OR for complex shapes:
   // shadowPoints: [{ dx: 0, dy: 0, radius: 40 }, ...]
   // Optional:
+  id: 'my_object_1',       // unique id for runtime removal via TileMap.removeObjectById()
   rotation: 0.44,          // rotation in radians (applied at render time)
   groundLayer: false,      // true = render with tiles (always below player)
   shadowHeight: 12,        // override shadow casting height (default = draw height)
@@ -161,6 +161,7 @@ tileMap.addObject({
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
+| id | string | — | Optional unique id for runtime removal |
 | col, row | number | required | Grid position (fractional OK) |
 | assetId | string | required | Asset manifest id |
 | width, height | number | required | Draw size in world pixels |
@@ -283,10 +284,11 @@ this.entityManager.add(npc);
 ```
 
 The game loop will automatically:
-- Update the NPC's movement and fade-in
+- Update the NPC's movement (re-aim steering) and fade-in
 - Render it with Z-sorting
 - Show the interact marker when idle
 - Handle proximity-based interaction prompt
+- Open the dialog when player presses E nearby
 
 ---
 
@@ -333,7 +335,26 @@ const myDialog: DialogTree = {
 registerDialog(myDialog);
 ```
 
-### 2. Link to NPC
+### 2. Conditional Choices
+
+Choices can be conditionally shown and can execute side effects:
+
+```typescript
+{
+  text: 'Give the bone to the dog',
+  nextNodeId: 'bone_given',
+  condition: (flags, inventory, quests) => inventory.has('bone', 1),
+  onSelect: (flags, inventory, quests) => {
+    inventory.remove('bone', 1);
+    flags.set('dog_fed', true);
+  },
+}
+```
+
+- **`condition`** — choice is hidden when this returns `false`
+- **`onSelect`** — runs when the player selects this choice (before navigating to the next node)
+
+### 3. Link to NPC
 
 Set the dialogId in the NPC's NPCOptions to match the tree's id.
 
@@ -349,9 +370,180 @@ DialogTree
        - choices: DialogChoice[]
             - text: string
             - nextNodeId: string | null
+            - condition?: (flags, inventory, quests) => boolean
+            - onSelect?: (flags, inventory, quests) => void
 ```
 
 A null nextNodeId ends the conversation.
+
+---
+
+## Adding Items
+
+### 1. Define the Item
+
+In `src/items/ItemDef.ts`, add a new entry to the `registerItems()` call:
+
+```typescript
+{
+  id: 'my_item',
+  name: 'My Item',
+  description: 'A description of the item.',
+  iconAssetId: 'item_icon_my_item',
+  stackable: true,
+  maxStack: 10,
+}
+```
+
+### 2. Create Procedural Icon (Optional)
+
+In `src/assets/ProceduralAssets.ts`, add a `makeItemIcon()` call or custom function:
+
+```typescript
+assetLoader.registerCanvas('item_icon_my_item', makeItemIcon('#FF0000', '★'));
+```
+
+Or create a custom icon function for more complex sprites.
+
+### 3. Create World Sprite (Optional)
+
+If the item should appear as a collectible in the world, also create a world-sized sprite:
+
+```typescript
+assetLoader.registerCanvas('collectible_my_item', makeCollectibleSprite('#FF0000'));
+```
+
+### Item Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | string | Unique identifier used in code |
+| `name` | string | Display name shown in UI |
+| `description` | string | Shown in inventory/preview |
+| `iconAssetId` | string | Procedural asset id for 24×24 icon |
+| `stackable` | boolean | Can multiple instances stack in one slot? |
+| `maxStack` | number | Maximum stack size (1 for non-stackable) |
+
+**Non-stackable items** (maxStack: 1) trigger the item preview dialog on pickup.
+
+---
+
+## Adding Collectibles
+
+Collectibles are world entities that the player picks up by walking near them (auto-pickup).
+
+### 1. Spawn in Game.ts
+
+In the `spawnCollectibles()` method:
+
+```typescript
+const c = new Collectible('collect_my_item', {
+  col: 3.0,
+  row: 2.0,
+  itemId: 'my_item',
+  assetId: 'collectible_my_item',
+  pickupRadius: 0.5,
+  drawH: 20,
+});
+this.entityManager.add(c);
+```
+
+### 2. InteractableObject (Press-E Pickup)
+
+For objects that require the player to press E (like stick piles), use `InteractableObject`:
+
+```typescript
+const obj = new InteractableObject('interact_my_pile', {
+  col: 2.0,
+  row: 3.0,
+  label: 'collect items',
+  onInteract: () => {
+    const added = inventory.add('my_item', 1, 'interact_my_pile');
+    if (added > 0) {
+      this.tileMap.removeObjectById('my_pile_visual');
+      obj.deplete();
+      this.entityManager.remove('interact_my_pile');
+      return true;
+    }
+    return false;
+  },
+});
+this.entityManager.add(obj);
+```
+
+### Collectible vs InteractableObject
+
+| Feature | Collectible | InteractableObject |
+|---------|------------|-------------------|
+| Pickup method | Auto (walk near) | Press E |
+| Visual | Has its own sprite (bob animation) | Invisible (relies on TileMap object visual) |
+| Animation | Bob, pickup scale+fade, launch arc | None |
+| Use case | Loose items on ground | Harvesting from static objects |
+
+---
+
+## Adding Quests
+
+### 1. Define the Quest
+
+In `src/quests/QuestDef.ts`, add to the `registerQuests()` call:
+
+```typescript
+{
+  id: 'q_my_quest',
+  title: 'My Quest',
+  description: 'Description shown in quest log.',
+  objectives: [
+    { description: 'Collect 3 gems', type: 'collect', target: 'gem', required: 3 },
+    { description: 'Activate the shrine', type: 'flag', target: 'shrine_activated', required: 1 },
+  ],
+  completionFlag: 'quest_my_quest_done',
+}
+```
+
+### 2. Start the Quest
+
+In Game.ts constructor or via dialog `onSelect`:
+
+```typescript
+questTracker.startQuest('q_my_quest');
+```
+
+### 3. Objective Types
+
+| Type | Target | Advancement |
+|------|--------|------------|
+| `collect` | Item id | Auto-advances when `collectible:pickup` or `inventory:changed` events fire for the target item |
+| `flag` | GameFlags key | Advances when `questTracker.checkFlags()` is called and the flag is set |
+
+### 4. Quest Completion
+
+When all objectives are met:
+- `completionFlag` is set in GameFlags
+- `quest:completed` event is emitted
+- Quest moves from active to completed in the quest log
+
+### 5. Quest-Gated Dialog
+
+Use `condition` on dialog choices to check quest state:
+
+```typescript
+{
+  text: 'I finished the task!',
+  nextNodeId: 'reward',
+  condition: (flags, inv, quests) => flags.getBool('quest_my_quest_done'),
+}
+```
+
+### Quest Flow Example
+
+```
+Player accepts quest (dialog onSelect → questTracker.startQuest)
+  → Player collects items (EventBus auto-advances objective 1)
+  → Player activates object (flags.set + questTracker.checkFlags → objective 2)
+  → All objectives complete → quest completed
+  → Player returns to NPC → conditional dialog unlocked → reward
+```
 
 ---
 
@@ -375,6 +567,18 @@ A null nextNodeId ends the conversation.
 - **anchorY**: Vertical anchor point (0.85-0.95 typical for objects that sit on the ground)
 - **groundLayer**: Set to true for objects that should always render below the player (e.g., campfire pit)
 
+### Item Icons (Procedural)
+- **Size**: 24×24 px canvas
+- **Format**: Procedurally generated via `ProceduralAssets.ts`
+- **Naming**: `item_icon_{item_id}` for inventory display
+- **Style**: Simple symbolic representations with colored backgrounds
+
+### World Collectible Sprites (Procedural)
+- **Size**: 16×16 px canvas
+- **Format**: Procedurally generated via `ProceduralAssets.ts`
+- **Naming**: `collectible_{item_id}` for world rendering
+- **Style**: Colored circles/shapes, drawn at `COLLECTIBLE_DRAW_H` (20px)
+
 ### Asset Checklist
 
 - [ ] All PNGs have full alpha transparency (no white backgrounds)
@@ -384,4 +588,5 @@ A null nextNodeId ends the conversation.
 - [ ] All directional animations have matching frame counts
 - [ ] File naming follows the project convention
 - [ ] Asset added to assets.json
+- [ ] Item icon registered in ProceduralAssets.ts (if item)
 - [ ] Tested at multiple zoom levels (1x, 2x, 4x)

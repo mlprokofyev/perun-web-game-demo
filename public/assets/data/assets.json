@@ -13,6 +13,7 @@
     { "id": "char_walk_north_west",    "path": "/assets/sprites/characters/player_walk_north_west.png" },
 
     { "id": "obj_tree_med_snow",       "path": "/assets/sprites/objects/tree_snow_med_1.png" },
+    { "id": "obj_tree_pine_snow",      "path": "/assets/sprites/objects/tree_pine_snow.png" },
     { "id": "obj_tree_big",            "path": "/assets/sprites/objects/tree_big.png" },
     { "id": "obj_tree_snow_big_1",     "path": "/assets/sprites/objects/tree_snow_big_1.png" },
     { "id": "obj_stone",               "path": "/assets/sprites/objects/stone_on_grass.png" },

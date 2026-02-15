@@ -11,6 +11,8 @@ export enum Action {
   TOGGLE_LIGHT = 'TOGGLE_LIGHT',
   TOGGLE_SNOW  = 'TOGGLE_SNOW',
   TOGGLE_TIME  = 'TOGGLE_TIME',
+  INVENTORY    = 'INVENTORY',
+  QUEST_LOG    = 'QUEST_LOG',
   DEBUG_GRID   = 'DEBUG_GRID',
   PAUSE        = 'PAUSE',
 }
@@ -29,6 +31,8 @@ export const DEFAULT_BINDINGS: KeyBindings = {
   [Action.TOGGLE_LIGHT]: ['KeyL'],
   [Action.TOGGLE_SNOW]:  ['KeyN'],
   [Action.TOGGLE_TIME]:  ['KeyT'],
+  [Action.INVENTORY]:    ['KeyI'],
+  [Action.QUEST_LOG]:    ['KeyJ'],
   [Action.DEBUG_GRID]:   ['KeyG'],
   [Action.PAUSE]:        ['Escape'],
 };

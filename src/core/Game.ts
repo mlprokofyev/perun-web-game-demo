@@ -5,16 +5,28 @@ import { PostProcessPipeline } from '../rendering/PostProcessPipeline';
 import { InputSystem } from '../systems/InputSystem';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { AnimationSystem } from '../systems/AnimationSystem';
+import { Entity } from '../entities/Entity';
 import { Player } from '../entities/Player';
 import { NPC } from '../entities/NPC';
 import { Campfire } from '../entities/Campfire';
+import { Collectible, CollectibleState } from '../entities/Collectible';
+import { InteractableObject } from '../entities/InteractableObject';
+import { TriggerZone } from '../entities/TriggerZone';
 import { TileMap } from '../world/TileMap';
 import { HUD } from '../ui/HUD';
 import { DialogUI } from '../ui/DialogUI';
+import { InventoryUI } from '../ui/InventoryUI';
+import { QuestLogUI } from '../ui/QuestLogUI';
 import { DialogState } from '../states/DialogState';
+import { InventoryState } from '../states/InventoryState';
+import { QuestLogState } from '../states/QuestLogState';
+import { ItemPreviewState } from '../states/ItemPreviewState';
+import { ItemPreviewUI } from '../ui/ItemPreviewUI';
 import { getDialogTree } from '../dialog/DialogData';
-// Side-effect import: registers the sample dog dialog in the registry
+// Side-effect imports: registers sample dialog + items + quests
 import '../dialog/DialogData';
+import '../items/ItemDef';
+import '../quests/QuestDef';
 import { isoToScreen } from '../rendering/IsometricUtils';
 import type { AnimationDef } from '../entities/AnimationController';
 import { assetLoader } from '../core/AssetLoader';
@@ -26,6 +38,10 @@ import { InputManager, Action } from './InputManager';
 import { GameState, GameStateManager } from './GameState';
 import { FireLightEffect } from '../rendering/effects/FireLightEffect';
 import { LightingProfile, NIGHT_PROFILE, DAY_PROFILE, lerpProfile } from '../rendering/LightingProfile';
+import { inventory } from '../items/Inventory';
+import { getItemDef, type ItemDef } from '../items/ItemDef';
+import { questTracker } from '../quests/QuestTracker';
+import { gameFlags } from './GameFlags';
 
 /** Derived constants from Config — computed once at module load */
 const TILE_IMG_W = Config.TILE_IMG_W;
@@ -59,7 +75,16 @@ export class Game {
   private tileMap: TileMap;
   private hud: HUD;
   private dialogUI: DialogUI;
+  private inventoryUI: InventoryUI;
+  private questLogUI: QuestLogUI;
+  private itemPreviewUI: ItemPreviewUI;
   private interactPrompt: HTMLElement;
+
+  /** Floating text particles for pickup feedback */
+  private floatingTexts: Array<{ text: string; x: number; y: number; life: number; maxLife: number }> = [];
+
+  /** Scheduled callbacks — { timer (seconds remaining), callback } */
+  private pendingEvents: Array<{ timer: number; callback: () => void }> = [];
 
   private lastTimestamp: number = 0;
   private elapsed: number = 0;
@@ -68,7 +93,7 @@ export class Game {
   /** Edge-triggered interaction tracking */
   private interactPrev: boolean = false;
 
-  /** DOM markers for interactable NPCs (keyed by entity id) */
+  /** DOM markers for interactable entities (keyed by entity id) */
   private interactMarkers: Map<string, HTMLElement> = new Map();
 
   constructor(container: HTMLElement, tileMap: TileMap) {
@@ -90,6 +115,9 @@ export class Game {
     this.entityManager = new EntityManager();
     this.hud = new HUD();
     this.dialogUI = new DialogUI();
+    this.inventoryUI = new InventoryUI();
+    this.questLogUI = new QuestLogUI();
+    this.itemPreviewUI = new ItemPreviewUI();
     this.interactPrompt = document.getElementById('interact-prompt')!;
 
     // ── Player ────────────────────────────────────────
@@ -113,6 +141,17 @@ export class Game {
 
     // ── Dog NPC ───────────────────────────────────────
     this.spawnDogNPC();
+
+    // ── Collectibles ─────────────────────────────────
+    this.spawnCollectibles();
+
+    // ── Stick pile interactables ─────────────────────
+    this.spawnStickPileInteractables();
+
+    // ── Quest tracker (auto-starts listening) ────────
+    questTracker.init();
+    // Auto-start the gather sticks quest
+    questTracker.start('q_gather_sticks');
 
     // ── State manager ─────────────────────────────────
     this.stateManager = new GameStateManager();
@@ -211,7 +250,7 @@ export class Game {
     dog.drawScale = Config.DOG_DRAW_H / Config.DOG_IDLE_SRC_H;
 
     // Blob shadow (smaller than player)
-    dog.blobShadow = { rx: 14, ry: 7, opacity: 0.3 };
+    dog.blobShadow = { rx: 11, ry: 6, opacity: 0.3 };
 
     // Register all 8 directions → same walk/idle asset (dog only has one facing)
     const walkAsset = 'dog_walk_west';
@@ -241,6 +280,288 @@ export class Game {
     dog.animController.play('walk_south_west');
 
     this.entityManager.add(dog);
+  }
+
+  // ─── Collectible spawning ────────────────────────────────────
+
+  private spawnCollectibles(): void {
+    // Sticks are now obtained from stick pile interactables (press E), not auto-pickup
+    const collectibles = [
+      { id: 'collect_bone_1', itemId: 'bone', col: 4.2, row: 4.5, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24 },
+      { id: 'collect_stone_1', itemId: 'stone', col: 5.0, row: 2.0, assetId: 'item_stone_world', srcW: 32, srcH: 32, drawH: 20 },
+    ];
+
+    for (const def of collectibles) {
+      const c = new Collectible(def.id, {
+        col: def.col,
+        row: def.row,
+        itemId: def.itemId,
+        assetId: def.assetId,
+        srcW: def.srcW,
+        srcH: def.srcH,
+        drawH: def.drawH,
+      });
+      this.entityManager.add(c);
+    }
+  }
+
+  // ─── Stick pile interactables ───────────────────────────────
+
+  /**
+   * Create InteractableObject entities at each stick pile location.
+   * Pressing E near them adds a stick to the player's inventory,
+   * then removes the visual object from the world.
+   */
+  private spawnStickPileInteractables(): void {
+    const piles = [
+      { entityId: 'interact_stick_pile_1', tileObjId: 'stick_pile_1', col: 0.5, row: 3.1 },
+      { entityId: 'interact_stick_pile_2', tileObjId: 'stick_pile_2', col: 2.8, row: 2.2 },
+    ];
+
+    for (const pile of piles) {
+      const obj = new InteractableObject(pile.entityId, {
+        col: pile.col,
+        row: pile.row,
+        label: 'collect sticks',
+        onInteract: () => {
+          const added = inventory.add('stick', 1, pile.entityId);
+          if (added > 0) {
+            eventBus.emit('collectible:pickup', { collectibleId: pile.entityId, itemId: 'stick' });
+            // Floating text feedback
+            const iso = isoToScreen(pile.col, pile.row);
+            const screen = this.camera.worldToScreen(iso.x, iso.y);
+            this.floatingTexts.push({
+              text: '+1 Stick',
+              x: screen.x,
+              y: screen.y - 30,
+              life: 1.2,
+              maxLife: 1.2,
+            });
+            // Remove the visual TileMap object
+            this.tileMap.removeObjectById(pile.tileObjId);
+            // Deplete the interactable
+            obj.deplete();
+            this.entityManager.remove(pile.entityId);
+            return true;
+          }
+          return false;
+        },
+      });
+      this.entityManager.add(obj);
+    }
+  }
+
+  // ─── Collectible pickup check ──────────────────────────────
+
+  private updateCollectibles(dt: number): void {
+    const px = this.player.transform.x;
+    const py = this.player.transform.y;
+
+    for (const e of this.entityManager.getAll()) {
+      if (!(e instanceof Collectible)) continue;
+
+      e.update(dt);
+
+      // Auto-pickup when player walks into range
+      if (e.state === CollectibleState.IDLE && e.isInRange(px, py)) {
+        if (e.startPickup()) {
+          const added = inventory.add(e.itemId, 1, e.id);
+          if (added > 0) {
+            eventBus.emit('collectible:pickup', { collectibleId: e.id, itemId: e.itemId });
+            // Spawn floating text feedback
+            const iso = isoToScreen(e.transform.x, e.transform.y);
+            const screen = this.camera.worldToScreen(iso.x, iso.y);
+            this.floatingTexts.push({
+              text: `+1`,
+              x: screen.x,
+              y: screen.y - 30,
+              life: 1.0,
+              maxLife: 1.0,
+            });
+
+            // Show item preview dialog for special items
+            const itemDef = getItemDef(e.itemId);
+            if (itemDef && !itemDef.stackable) {
+              this.showItemPreview(itemDef);
+            }
+          }
+        }
+      }
+
+      // Remove done collectibles
+      if (e.state === CollectibleState.DONE) {
+        this.entityManager.remove(e.id);
+      }
+    }
+  }
+
+  /** Open the item preview dialog (pauses the game). */
+  private showItemPreview(item: ItemDef): void {
+    const state = new ItemPreviewState(item, this.itemPreviewUI, () => {
+      this.stateManager.pop();
+    });
+    this.stateManager.push(state);
+  }
+
+  // ─── Floating text feedback ─────────────────────────────────
+
+  private updateFloatingTexts(dt: number): void {
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.life -= dt;
+      ft.y -= 30 * dt; // float upward
+      if (ft.life <= 0) {
+        this.floatingTexts.splice(i, 1);
+      }
+    }
+  }
+
+  private drawFloatingTexts(): void {
+    const ctx = this.renderer.ctx;
+    ctx.save();
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    for (const ft of this.floatingTexts) {
+      const alpha = Math.min(1, ft.life / ft.maxLife * 2);
+      ctx.fillStyle = `rgba(255, 240, 180, ${alpha})`;
+      ctx.strokeStyle = `rgba(0, 0, 0, ${alpha * 0.7})`;
+      ctx.lineWidth = 2;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillText(ft.text, ft.x, ft.y);
+    }
+    ctx.restore();
+  }
+
+  // ─── Trigger zone updates ──────────────────────────────────
+
+  private updateTriggerZones(): void {
+    const entities = this.entityManager.getAll()
+      .filter(e => !(e instanceof TriggerZone))
+      .map(e => ({ id: e.id, x: e.transform.x, y: e.transform.y }));
+
+    for (const e of this.entityManager.getAll()) {
+      if (e instanceof TriggerZone) {
+        e.check(entities);
+      }
+    }
+  }
+
+  // ─── Campfire interaction logic ──────────────────────────────
+
+  /**
+   * Make the campfire interactable when the player has 2+ sticks
+   * and the quest "put sticks in fire" objective is pending.
+   */
+  private updateCampfireInteractable(): void {
+    const hasSticks = inventory.has('stick', 2);
+    const questActive = questTracker.isActive('q_gather_sticks');
+    const alreadyFed = gameFlags.getBool('sticks_in_fire');
+
+    if (hasSticks && questActive && !alreadyFed) {
+      this.campfire.interactable = true;
+      this.campfire.interactLabel = 'feed the fire';
+    } else {
+      this.campfire.interactable = false;
+      this.campfire.interactLabel = '';
+    }
+  }
+
+  /**
+   * Called when the player presses E near the campfire (with 2 sticks).
+   * Consumes sticks, triggers fire burst, and schedules the secret item emergence.
+   */
+  private interactWithCampfire(): void {
+    // Double-check conditions
+    if (!inventory.has('stick', 2)) return;
+
+    // Consume sticks
+    inventory.remove('stick', 2);
+
+    // Set the flag → advances the quest
+    gameFlags.set('sticks_in_fire', true);
+    questTracker.checkFlags();
+
+    // Disable further campfire interaction
+    this.campfire.interactable = false;
+
+    // Floating text feedback
+    const iso = isoToScreen(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
+    const screen = this.camera.worldToScreen(iso.x, iso.y);
+    this.floatingTexts.push({
+      text: '🔥 Sticks added!',
+      x: screen.x,
+      y: screen.y - 40,
+      life: 1.5,
+      maxLife: 1.5,
+    });
+
+    // Fire burst animation
+    this.campfire.burst(2.5);
+
+    // Schedule the secret item emergence after 1.5 seconds
+    this.pendingEvents.push({
+      timer: 1.5,
+      callback: () => this.spawnSecretItem(),
+    });
+  }
+
+  /**
+   * Spawn the secret "Ancient Ember" item — launches from the campfire
+   * along a parabolic arc to a random position nearby.
+   */
+  private spawnSecretItem(): void {
+    // Random landing position: 1–2 grid units from campfire in a random direction
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 1.0 + Math.random() * 1.0;
+    const landCol = Config.CAMPFIRE_COL + Math.cos(angle) * dist;
+    const landRow = Config.CAMPFIRE_ROW + Math.sin(angle) * dist;
+
+    // Clamp to map bounds (with some padding)
+    const col = Math.max(0.5, Math.min(this.tileMap.cols - 0.5, landCol));
+    const row = Math.max(0.5, Math.min(this.tileMap.rows - 0.5, landRow));
+
+    const ember = new Collectible('secret_ancient_ember', {
+      col: Config.CAMPFIRE_COL,
+      row: Config.CAMPFIRE_ROW,
+      itemId: 'ancient_ember',
+      assetId: 'item_ancient_ember_world',
+      srcW: 32,
+      srcH: 32,
+      drawH: 26,
+    });
+
+    // Start the launch arc animation
+    ember.startLaunch(
+      { x: Config.CAMPFIRE_COL, y: Config.CAMPFIRE_ROW },
+      { x: col, y: row },
+      0.9,
+      70,
+    );
+
+    this.entityManager.add(ember);
+
+    // Floating text at the campfire
+    const iso = isoToScreen(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
+    const screen = this.camera.worldToScreen(iso.x, iso.y);
+    this.floatingTexts.push({
+      text: '✨ Something emerged!',
+      x: screen.x,
+      y: screen.y - 60,
+      life: 2.0,
+      maxLife: 2.0,
+    });
+  }
+
+  // ─── Pending events (scheduled callbacks) ──────────────────
+
+  private updatePendingEvents(dt: number): void {
+    for (let i = this.pendingEvents.length - 1; i >= 0; i--) {
+      this.pendingEvents[i].timer -= dt;
+      if (this.pendingEvents[i].timer <= 0) {
+        this.pendingEvents[i].callback();
+        this.pendingEvents.splice(i, 1);
+      }
+    }
   }
 
   start(): void {
@@ -294,8 +615,23 @@ export class Game {
 
     eventBus.emit('player:moved', { x: this.player.transform.x, y: this.player.transform.y });
 
-    // NPC interaction (proximity prompt + E to talk)
+    // Manage campfire interactability (dynamic — depends on inventory + quest state)
+    this.updateCampfireInteractable();
+
+    // NPC interaction (proximity prompt + E to interact)
     this.updateInteraction();
+
+    // Scheduled events (fire burst delays, etc.)
+    this.updatePendingEvents(dt);
+
+    // Collectibles (auto-pickup + animation + removal)
+    this.updateCollectibles(dt);
+
+    // Trigger zones
+    this.updateTriggerZones();
+
+    // Floating text particles
+    this.updateFloatingTexts(dt);
 
     this.hud.update(dt, this.player, this.camera, this.tileMap);
   }
@@ -305,14 +641,14 @@ export class Game {
   private updateInteraction(): void {
     const px = this.player.transform.x;
     const py = this.player.transform.y;
-    const radius = Config.NPC_INTERACT_RADIUS;
 
-    // Find nearest interactable NPC within radius
-    let nearest: NPC | null = null;
+    // Find nearest interactable entity within radius
+    let nearest: Entity | null = null;
     let nearestDist = Infinity;
 
     for (const e of this.entityManager.getAll()) {
-      if (!(e instanceof NPC) || !e.interactable) continue;
+      if (!e.interactable) continue;
+      const radius = (e instanceof InteractableObject) ? e.interactRadius : Config.NPC_INTERACT_RADIUS;
       const dx = e.transform.x - px;
       const dy = e.transform.y - py;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -322,13 +658,25 @@ export class Game {
       }
     }
 
-    // Show / hide "Press E to talk" prompt
-    this.interactPrompt.style.display = nearest ? '' : 'none';
+    // Show / hide interact prompt with dynamic text
+    if (nearest) {
+      const label = nearest.interactLabel || 'interact';
+      this.interactPrompt.innerHTML = `Press <span class="key">E</span> to ${label}`;
+      this.interactPrompt.style.display = '';
+    } else {
+      this.interactPrompt.style.display = 'none';
+    }
 
-    // Edge-triggered E key → open dialog
+    // Edge-triggered E key → dispatch interaction
     const eDown = this.inputManager.isActionDown(Action.INTERACT);
     if (eDown && !this.interactPrev && nearest) {
-      this.openDialog(nearest);
+      if (nearest instanceof NPC) {
+        this.openDialog(nearest);
+      } else if (nearest instanceof InteractableObject) {
+        nearest.interact();
+      } else if (nearest instanceof Campfire) {
+        this.interactWithCampfire();
+      }
     }
     this.interactPrev = eDown;
   }
@@ -422,7 +770,9 @@ export class Game {
     const active = new Set<string>();
 
     for (const e of this.entityManager.getAll()) {
-      if (!(e instanceof NPC) || !e.interactable) continue;
+      if (!e.interactable) continue;
+      // Skip invisible interactables that don't need markers (InteractableObject has its TileMap sprite)
+      // We show markers for NPCs, campfire, and InteractableObjects
       active.add(e.id);
 
       // Get or create the DOM element
@@ -448,17 +798,21 @@ export class Game {
         this.interactMarkers.set(e.id, el);
       }
 
-      // Position: world → screen, offset upward by sprite height
+      // Position: world → screen, offset upward
       const iso = isoToScreen(e.transform.x, e.transform.y);
       const screen = cam.worldToScreen(iso.x, iso.y);
-      const spriteH = (e.animController?.getCurrentFrame().height ?? 0) * e.drawScale;
+      // Use sprite height when available, otherwise a default offset for invisible entities
+      const spriteH = (e.animController?.getCurrentFrame()?.height ?? 0) * e.drawScale;
+      const defaultOffset = spriteH > 0
+        ? (-spriteH + Config.TILE_HEIGHT / 2) * zoom
+        : -30 * zoom; // default offset for invisible interactables
       const bob = Math.sin(this.elapsed * 3) * 3;
 
       // Scale marker proportionally with zoom, clamped to min/max
       const markerScale = Math.min(1.6, Math.max(0.6, zoom * 0.8));
 
       el.style.left = `${screen.x}px`;
-      el.style.top = `${screen.y + (-spriteH + Config.TILE_HEIGHT / 2) * zoom - 8 + bob}px`;
+      el.style.top = `${screen.y + defaultOffset - 8 + bob}px`;
       el.style.transform = `translateX(-50%) scale(${markerScale})`;
       el.style.display = '';
     }
@@ -476,6 +830,10 @@ export class Game {
   /** Track N-key toggle for snow */
   private snowTogglePrev = false;
   private snowEnabled = true;
+  /** Track I-key toggle for inventory */
+  private inventoryTogglePrev = false;
+  /** Track J-key toggle for quest log */
+  private questLogTogglePrev = false;
 
   /** Day/night lighting profile system */
   private timeTogglePrev = false;
@@ -554,6 +912,9 @@ export class Game {
       this.renderer.drawSnow(this.tileMap.cols, this.tileMap.rows, dt, this.elapsed);
     }
 
+    // Floating text feedback (pickup "+1" etc.)
+    this.drawFloatingTexts();
+
     // Debug grid overlay (hold action)
     if (this.inputManager.isActionDown(Action.DEBUG_GRID)) {
       this.renderer.drawGridOverlay(this.tileMap.cols, this.tileMap.rows);
@@ -572,6 +933,30 @@ export class Game {
       this.snowEnabled = !this.snowEnabled;
     }
     this.snowTogglePrev = nDown;
+
+    // Toggle inventory (edge-triggered)
+    const iDown = this.inputManager.isActionDown(Action.INVENTORY);
+    if (iDown && !this.inventoryTogglePrev) {
+      if (this.inventoryUI.visible) {
+        this.inventoryUI.hide();
+      } else {
+        this.questLogUI.hide(); // close quest log if open
+        this.inventoryUI.show();
+      }
+    }
+    this.inventoryTogglePrev = iDown;
+
+    // Toggle quest log (edge-triggered)
+    const jDown = this.inputManager.isActionDown(Action.QUEST_LOG);
+    if (jDown && !this.questLogTogglePrev) {
+      if (this.questLogUI.visible) {
+        this.questLogUI.hide();
+      } else {
+        this.inventoryUI.hide(); // close inventory if open
+        this.questLogUI.show();
+      }
+    }
+    this.questLogTogglePrev = jDown;
 
     // Toggle day/night (edge-triggered, smooth transition)
     const tDown = this.inputManager.isActionDown(Action.TOGGLE_TIME);

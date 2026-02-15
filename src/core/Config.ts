@@ -131,11 +131,11 @@ export const Config = {
   DOG_WALK_SRC_H: 96,
   DOG_IDLE_SRC_W: 123,   // 492 / 4 frames
   DOG_IDLE_SRC_H: 123,
-  DOG_DRAW_H: 80,        // desired on-screen draw height (reference = idle frame)
+  DOG_DRAW_H: 64,        // desired on-screen draw height (reference = idle frame)
 
   /** Dog NPC — shadow casting */
-  DOG_SHADOW_RADIUS: 10,  // occluder radius in asset-pixels (smaller than player)
-  DOG_FOOT_OFFSET: 5,     // vertical offset from sprite bottom to visual feet (asset px)
+  DOG_SHADOW_RADIUS: 8,   // occluder radius in asset-pixels (smaller than player)
+  DOG_FOOT_OFFSET: 4,     // vertical offset from sprite bottom to visual feet (asset px)
 
   /** Dog NPC — behavior */
   DOG_SPEED: 60,          // world px/s

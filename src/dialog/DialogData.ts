@@ -1,3 +1,5 @@
+import type { GameFlags } from '../core/GameFlags';
+
 // ─── Dialog tree data model ────────────────────────────────────
 
 /** A single selectable response the player can pick. */
@@ -5,6 +7,10 @@ export interface DialogChoice {
   text: string;
   /** Id of the next node, or null to end the conversation. */
   nextNodeId: string | null;
+  /** Optional: choice is only shown when this returns true. */
+  condition?: (flags: GameFlags) => boolean;
+  /** Optional: executed when the player picks this choice (before advancing). */
+  onSelect?: (flags: GameFlags) => void;
 }
 
 /** One "beat" in a conversation — the NPC speaks, then the player chooses. */
@@ -35,7 +41,10 @@ export function registerDialog(tree: DialogTree): void {
   DIALOG_REGISTRY[tree.id] = tree;
 }
 
-// ─── Sample: dog greeting ──────────────────────────────────────
+// ─── Sample: dog greeting (quest-integrated) ───────────────────
+
+import { inventory } from '../items/Inventory';
+import { questTracker } from '../quests/QuestTracker';
 
 export const DOG_DIALOG: DialogTree = {
   id: 'dog_greeting',
@@ -47,6 +56,21 @@ export const DOG_DIALOG: DialogTree = {
       choices: [
         { text: 'Hey there, buddy! Are you lost?', nextNodeId: 'lost' },
         { text: 'What a good boy!', nextNodeId: 'good_boy' },
+        {
+          text: 'Here, I found a bone for you!',
+          nextNodeId: 'give_bone',
+          // Only show if player has a bone AND quest is active
+          condition: (flags) => inventory.has('bone') && questTracker.isActive('q_dog_bone'),
+          onSelect: (flags) => {
+            inventory.remove('bone', 1);
+            flags.set('dog_fed', true);
+          },
+        },
+        {
+          text: '(The dog seems happy now.)',
+          nextNodeId: 'end_happy_quest',
+          condition: (flags) => flags.getBool('dog_fed'),
+        },
         { text: 'Shoo! Go away!', nextNodeId: 'shoo' },
       ],
     },
@@ -54,8 +78,37 @@ export const DOG_DIALOG: DialogTree = {
       speaker: 'Dog',
       text: '*tilts head and whimpers softly, then nudges your hand with a cold nose*',
       choices: [
+        {
+          text: "Don't worry, I'll look after you. Let me find something for you.",
+          nextNodeId: 'quest_accept',
+          condition: (flags) => !flags.getBool('quest_dog_bone_done') && !questTracker.isActive('q_dog_bone'),
+          onSelect: (_flags) => {
+            questTracker.start('q_dog_bone');
+          },
+        },
         { text: "Don't worry, I'll look after you.", nextNodeId: 'end_happy' },
         { text: 'I wish I had something to give you...', nextNodeId: 'end_happy' },
+      ],
+    },
+    quest_accept: {
+      speaker: 'Dog',
+      text: '*perks up and sniffs the air hopefully, tail wagging faster*',
+      choices: [
+        { text: "I'll find something, hold on!", nextNodeId: null },
+      ],
+    },
+    give_bone: {
+      speaker: 'Dog',
+      text: '*eyes go wide, grabs the bone gently, and starts gnawing on it with pure joy!*',
+      choices: [
+        { text: 'Enjoy it, buddy!', nextNodeId: 'end_happy_quest' },
+      ],
+    },
+    end_happy_quest: {
+      speaker: 'Dog',
+      text: '*lies down contentedly with the bone between paws, tail sweeping the ground*',
+      choices: [
+        { text: '[End]', nextNodeId: null },
       ],
     },
     good_boy: {

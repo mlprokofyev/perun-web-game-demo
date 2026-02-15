@@ -32,6 +32,14 @@ export interface GameEvents {
   'scene:transition': { from: string; to: string };
   /** An input action was pressed or released */
   'input:action': { action: string; state: 'pressed' | 'released' };
+  /** A quest objective was completed */
+  'quest:objective_complete': { questId: string; objectiveIndex: number };
+  /** A quest was completed */
+  'quest:complete': { questId: string };
+  /** A quest was started / activated */
+  'quest:started': { questId: string };
+  /** A collectible was picked up (before inventory add) */
+  'collectible:pickup': { collectibleId: string; itemId: string };
 }
 
 // ─── Typed EventBus ─────────────────────────────────────────────

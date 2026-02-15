@@ -37,6 +37,12 @@ export class Campfire extends Entity {
   /** Spawns per second */
   private spawnRate = 14;
 
+  /** Burst mode — temporarily boost spark generation */
+  private burstTimer: number = 0;
+  private burstDuration: number = 0;
+  private savedMaxSparks: number = 30;
+  private savedSpawnRate: number = 14;
+
   constructor(col: number, row: number) {
     super('campfire');
     this.layer = 'object';
@@ -56,8 +62,32 @@ export class Campfire extends Entity {
     this.animController = new AnimationController();
   }
 
+  /**
+   * Trigger a dramatic fire burst — temporarily increases spark rate and count.
+   * @param duration How long the burst lasts in seconds (default 2.0).
+   */
+  burst(duration: number = 2.0): void {
+    this.savedMaxSparks = this.maxSparks;
+    this.savedSpawnRate = this.spawnRate;
+    this.maxSparks = 120;
+    this.spawnRate = 60;
+    this.burstDuration = duration;
+    this.burstTimer = 0;
+  }
+
   /** Advance spark particles. Call every frame. */
   updateSparks(dt: number): void {
+    // Handle burst cooldown
+    if (this.burstDuration > 0) {
+      this.burstTimer += dt;
+      if (this.burstTimer >= this.burstDuration) {
+        this.maxSparks = this.savedMaxSparks;
+        this.spawnRate = this.savedSpawnRate;
+        this.burstDuration = 0;
+        this.burstTimer = 0;
+      }
+    }
+
     // Spawn new sparks
     this.spawnAccum += dt;
     const interval = 1 / this.spawnRate;
