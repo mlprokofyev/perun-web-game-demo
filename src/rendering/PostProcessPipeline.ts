@@ -10,6 +10,7 @@
 
 const MAX_LIGHTS = 16;
 const MAX_OCCLUDERS = 32;
+const MAX_HF = 8;         // max simultaneous height-fade zones (entities)
 
 /* ─── Shaders ──────────────────────────────────────────────────────── */
 
@@ -28,6 +29,7 @@ precision highp float;
 
 #define MAX_LIGHTS    16
 #define MAX_OCCLUDERS 32
+#define MAX_HF        8
 
 uniform sampler2D u_scene;
 uniform vec2      u_resolution;
@@ -51,12 +53,12 @@ uniform float u_occHeight[MAX_OCCLUDERS];
 /* Shadow length control */
 uniform float u_shadowLenMult;
 
-/* Height-fade zone — reduces shadow on tall entities (feet=full shadow, head=lit) */
-uniform int   u_hfActive;       /* 0 = off, 1 = on */
-uniform vec2  u_hfFootPos;      /* foot center in GL screen coords */
-uniform float u_hfWidth;        /* sprite width in pixels */
-uniform float u_hfHeight;       /* sprite height in pixels */
-uniform float u_hfStrength;     /* 0-1: how much shadow is reduced at head */
+/* Height-fade zones — reduces shadow on tall entities (feet=full shadow, head=lit) */
+uniform int   u_numHF;                  /* number of active height-fade zones */
+uniform vec2  u_hfFootPos [MAX_HF];     /* foot center in GL screen coords */
+uniform float u_hfWidth   [MAX_HF];     /* sprite width in pixels */
+uniform float u_hfHeight  [MAX_HF];     /* sprite height in pixels */
+uniform float u_hfStrength[MAX_HF];     /* 0-1: how much shadow is reduced at head */
 
 /* Volumetric sprite shading — cylindrical diffuse + rim light */
 uniform sampler2D u_spriteTex;
@@ -155,18 +157,20 @@ void main() {
         }
 
         /* Height fade: tall entities see over ground-level shadows.
-           Uses actual sprite alpha to confine the effect to the player's
-           visible body — transparent area around the sprite is untouched.
+           Each registered height-fade zone lifts shadow from feet→head
+           so the entity doesn't go uniformly dark.
 
-           Direction-aware: in isometric view, "behind the player" means the
-           light source is above the feet in GL Y (farther from the camera).
-           When the light is behind, the face should stay in shadow, so we
-           reduce the height-fade strength via frontFac. */
-        if (u_hfActive > 0) {
+           For the zone that overlaps the volumetric sprite, we use
+           actual sprite alpha for precise masking.  All others use a
+           soft rectangular containment fallback. */
+        for (int k = 0; k < MAX_HF; k++) {
+            if (k >= u_numHF) break;
+
             float hfMask = 0.0;
 
+            /* Try precise sprite-alpha path (only hits pixels on the
+               volumetric sprite — automatically skips other entities). */
             if (u_volActive > 0) {
-                /* Precise path: sample sprite alpha texture */
                 vec2 sprMin  = u_spriteRect.xy;
                 vec2 sprSize = u_spriteRect.zw;
                 vec2 lp = fragPos - sprMin;
@@ -176,27 +180,24 @@ void main() {
                     vec2 srcUV = u_spriteSrcUV.xy + luv * u_spriteSrcUV.zw;
                     hfMask = spriteAlpha(srcUV);
                 }
-            } else {
-                /* Fallback: soft rectangular containment (no sprite tex) */
-                float dx = abs(fragPos.x - u_hfFootPos.x);
-                hfMask = 1.0 - smoothstep(u_hfWidth * 0.1, u_hfWidth * 1.0, dx);
+            }
+
+            /* Fallback: soft rectangular containment */
+            if (hfMask < 0.01) {
+                float dxx = abs(fragPos.x - u_hfFootPos[k].x);
+                hfMask = 1.0 - smoothstep(u_hfWidth[k] * 0.1, u_hfWidth[k] * 1.0, dxx);
             }
 
             if (hfMask > 0.1) {
-                float dy = fragPos.y - u_hfFootPos.y;  /* positive = above feet in GL */
-                /* vertical: 0 at feet, peaks mid-sprite, 0 above head */
-                float hy = smoothstep(0.0, u_hfHeight * 1.0, dy)
-                         * (1.0 - smoothstep(u_hfHeight * 0.8, u_hfHeight * 0.9, dy));
+                float dyy = fragPos.y - u_hfFootPos[k].y;
+                float hy = smoothstep(0.0, u_hfHeight[k] * 1.0, dyy)
+                         * (1.0 - smoothstep(u_hfHeight[k] * 0.8, u_hfHeight[k] * 0.9, dyy));
 
-                /* Isometric facing factor — infer depth from screen position.
-                   In isometric: higher GL Y = top of screen = farther from camera.
-                   Derive a pseudo-Z: negative Y (light below = in front) → positive Z;
-                   positive Y (light above = behind) → negative Z. */
-                vec2  hlDir = u_lightPos[i] - vec2(u_hfFootPos.x, u_hfFootPos.y + u_hfHeight * 0.5);
+                vec2  hlDir = u_lightPos[i] - vec2(u_hfFootPos[k].x, u_hfFootPos[k].y + u_hfHeight[k] * 0.5);
                 float isoZ  = -hlDir.y + abs(hlDir.x) * 0.3;
                 float frontFac = smoothstep(-80.0, 80.0, isoZ);
 
-                shadow = mix(shadow, 1.0, hfMask * hy * u_hfStrength * frontFac);
+                shadow = mix(shadow, 1.0, hfMask * hy * u_hfStrength[k] * frontFac);
             }
         }
 
@@ -316,13 +317,8 @@ export class PostProcessPipeline {
   private shadowLenMult = 2.0;
   private _enabled = true;
 
-  /* Height-fade zone (screen coords, top=0) */
-  private hfActive = false;
-  private hfFootX = 0;
-  private hfFootY = 0;
-  private hfWidth = 0;
-  private hfHeight = 0;
-  private hfStrength = 0;
+  /* Height-fade zones (screen coords, top=0) — one per entity */
+  private hfZones: { footX: number; footY: number; width: number; height: number; strength: number }[] = [];
 
   /* Volumetric sprite shading */
   private spriteTex: WebGLTexture | null = null;
@@ -432,11 +428,7 @@ export class PostProcessPipeline {
       'u_numLights',
       'u_numOccluders',
       'u_shadowLenMult',
-      'u_hfActive',
-      'u_hfFootPos',
-      'u_hfWidth',
-      'u_hfHeight',
-      'u_hfStrength',
+      'u_numHF',
       /* volumetric */
       'u_spriteTex',
       'u_volActive',
@@ -470,6 +462,14 @@ export class PostProcessPipeline {
       this.loc[`u_occPos[${i}]`] = gl.getUniformLocation(prog, `u_occPos[${i}]`);
       this.loc[`u_occRadius[${i}]`] = gl.getUniformLocation(prog, `u_occRadius[${i}]`);
       this.loc[`u_occHeight[${i}]`] = gl.getUniformLocation(prog, `u_occHeight[${i}]`);
+    }
+
+    /* Cache per-height-fade uniforms */
+    for (let i = 0; i < MAX_HF; i++) {
+      this.loc[`u_hfFootPos[${i}]`] = gl.getUniformLocation(prog, `u_hfFootPos[${i}]`);
+      this.loc[`u_hfWidth[${i}]`] = gl.getUniformLocation(prog, `u_hfWidth[${i}]`);
+      this.loc[`u_hfHeight[${i}]`] = gl.getUniformLocation(prog, `u_hfHeight[${i}]`);
+      this.loc[`u_hfStrength[${i}]`] = gl.getUniformLocation(prog, `u_hfStrength[${i}]`);
     }
   }
 
@@ -569,19 +569,17 @@ export class PostProcessPipeline {
     }
   }
 
-  /** Define the height-fade zone for a tall entity (screen coords, top=0).
-   *  Feet = full shadow, head = shadow reduced by `strength`. */
-  setHeightFade(footX: number, footY: number, width: number, height: number, strength: number): void {
-    this.hfActive = true;
-    this.hfFootX = footX;
-    this.hfFootY = footY;
-    this.hfWidth = width;
-    this.hfHeight = height;
-    this.hfStrength = strength;
+  /** Register a height-fade zone for an entity (screen coords, top=0).
+   *  Feet = full shadow, head = shadow reduced by `strength`.
+   *  Call once per entity per frame (after clearHeightFade). */
+  addHeightFade(footX: number, footY: number, width: number, height: number, strength: number): void {
+    if (this.hfZones.length < MAX_HF) {
+      this.hfZones.push({ footX, footY, width, height, strength });
+    }
   }
 
   clearHeightFade(): void {
-    this.hfActive = false;
+    this.hfZones.length = 0;
   }
 
   /* ── Volumetric sprite shading ─────────────────────────────────── */
@@ -679,14 +677,14 @@ export class PostProcessPipeline {
       gl.uniform1f(this.loc[`u_occHeight[${i}]`], O.height);
     }
 
-    /* Height-fade zone */
-    gl.uniform1i(this.loc['u_hfActive'], this.hfActive ? 1 : 0);
-    if (this.hfActive) {
-      // Flip Y for GL: feet position
-      gl.uniform2f(this.loc['u_hfFootPos'], this.hfFootX, h - this.hfFootY);
-      gl.uniform1f(this.loc['u_hfWidth'], this.hfWidth);
-      gl.uniform1f(this.loc['u_hfHeight'], this.hfHeight);
-      gl.uniform1f(this.loc['u_hfStrength'], this.hfStrength);
+    /* Height-fade zones */
+    gl.uniform1i(this.loc['u_numHF'], this.hfZones.length);
+    for (let i = 0; i < this.hfZones.length; i++) {
+      const z = this.hfZones[i];
+      gl.uniform2f(this.loc[`u_hfFootPos[${i}]`], z.footX, h - z.footY);
+      gl.uniform1f(this.loc[`u_hfWidth[${i}]`], z.width);
+      gl.uniform1f(this.loc[`u_hfHeight[${i}]`], z.height);
+      gl.uniform1f(this.loc[`u_hfStrength[${i}]`], z.strength);
     }
 
     /* Volumetric sprite shading */
