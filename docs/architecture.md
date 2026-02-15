@@ -432,6 +432,22 @@ The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING �
 
 ---
 
+## Animation Controller
+
+`src/entities/AnimationController.ts` — manages sprite-sheet frame advancement for any entity.
+
+### Stop Behavior
+
+When the entity stops moving (`setFromVelocity` detects zero velocity):
+
+1. **Snap to frame 0** — resets `currentFrame` and `elapsed` to 0, showing the neutral standing pose
+2. **Freeze** — frame advancement is paused (`frozen = true`)
+3. **Idle timeout** — after `IDLE_TIMEOUT` seconds (10s) of inactivity, switches from the frozen walk animation to the dedicated idle animation (`idle_{direction}`)
+
+This prevents the character from appearing stuck mid-stride when the player releases movement keys.
+
+---
+
 ## Campfire Entity
 
 `src/entities/Campfire.ts` — animated fire with a particle spark system.

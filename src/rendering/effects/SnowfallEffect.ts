@@ -25,6 +25,9 @@ export class SnowfallEffect {
   /** World-space bounding box for snowflake spawning (cached on init) */
   private bounds = { minWx: 0, maxWx: 0, minWy: 0, maxWy: 0 };
 
+  /** Opacity multiplier (0-1). Driven by the active LightingProfile. */
+  opacity = 1.0;
+
   /** Initialise snowflake pool — positions are in world space. */
   init(cols: number, rows: number): void {
     const count = Config.SNOW_PARTICLE_COUNT;
@@ -116,6 +119,7 @@ export class SnowfallEffect {
     time: number,
   ): void {
     if (!Config.SNOW_ENABLED) return;
+    if (this.opacity < 0.001) return;
     if (!this.inited) this.init(cols, rows);
 
     const layers = Config.SNOW_DEPTH_LAYERS;
@@ -129,6 +133,7 @@ export class SnowfallEffect {
     const bh = bounds.maxWy - bounds.minWy;
 
     ctx.save();
+    ctx.globalAlpha = this.opacity;
 
     for (const f of this.snowflakes) {
       // ── Physics update (world space) ──

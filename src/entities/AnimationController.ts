@@ -70,8 +70,10 @@ export class AnimationController {
       return;
     }
 
-    // Not moving — freeze current walk frame and start counting
+    // Not moving — snap to first frame (neutral stance) and freeze
     if (!this.frozen && this.currentKey.startsWith('walk_')) {
+      this.currentFrame = 0;
+      this.elapsed = 0;
       this.frozen = true;
       this.idleTimer = 0;
     }

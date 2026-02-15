@@ -286,8 +286,9 @@ export class Game {
 
   private spawnCollectibles(): void {
     // Sticks are now obtained from stick pile interactables (press E), not auto-pickup
-    const collectibles = [
-      { id: 'collect_bone_1', itemId: 'bone', col: 4.2, row: 4.5, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24 },
+    const collectibles: { id: string; itemId: string; col: number; row: number; assetId: string; srcW: number; srcH: number; drawH: number; pickupRadius?: number }[] = [
+      { id: 'collect_bone_1', itemId: 'bone', col: 4.4, row: 4.1, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24, pickupRadius: 0.25 },
+      { id: 'collect_bone_2', itemId: 'bone', col: 1.2, row: 4.4, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24, pickupRadius: 0.25 },
       { id: 'collect_stone_1', itemId: 'stone', col: 5.0, row: 2.0, assetId: 'item_stone_world', srcW: 32, srcH: 32, drawH: 20 },
     ];
 
@@ -300,6 +301,7 @@ export class Game {
         srcW: def.srcW,
         srcH: def.srcH,
         drawH: def.drawH,
+        pickupRadius: def.pickupRadius,
       });
       this.entityManager.add(c);
     }
@@ -671,7 +673,7 @@ export class Game {
     const eDown = this.inputManager.isActionDown(Action.INTERACT);
     if (eDown && !this.interactPrev && nearest) {
       if (nearest instanceof NPC) {
-        this.openDialog(nearest);
+      this.openDialog(nearest);
       } else if (nearest instanceof InteractableObject) {
         nearest.interact();
       } else if (nearest instanceof Campfire) {
@@ -760,6 +762,9 @@ export class Game {
 
     // Campfire opacity (smooth fade)
     this.campfire.opacity = p.fireOpacity;
+
+    // Snow, vignette & fog wisps (driven by profile, transitions smoothly)
+    this.renderer.applyEffectProfile(p);
   }
 
   // ─── Interactable markers (DOM overlays) ─────────────────────
@@ -879,8 +884,8 @@ export class Game {
     // 1) Draw ground tiles
     this.renderer.flushLayer(RenderLayer.GROUND);
 
-    // 2) Back boundary fog + back animated wisps — behind objects
-    this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows, 'back');
+    // 2) Back boundary vignette + back animated wisps — behind objects
+    this.renderer.drawBoundaryVignette(this.tileMap.cols, this.tileMap.rows, 'back');
     this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'back');
 
     // 3) Blob shadows for all entities that have them
@@ -903,8 +908,8 @@ export class Game {
     // 5) Draw objects & entities (depth-sorted, covers sparks)
     this.renderer.flushLayer(RenderLayer.OBJECT);
 
-    // 5) Front boundary fog + front animated wisps — over objects
-    this.renderer.drawBoundaryFog(this.tileMap.cols, this.tileMap.rows, 'front');
+    // 5) Front boundary vignette + front animated wisps — over objects
+    this.renderer.drawBoundaryVignette(this.tileMap.cols, this.tileMap.rows, 'front');
     this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'front');
 
     // 6) Snowfall — 3D world-space particles drawn over the scene, before post-process

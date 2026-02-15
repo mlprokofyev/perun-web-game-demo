@@ -32,7 +32,7 @@ export const Config = {
 
   /** Camera */
   CAMERA_ZOOM_MIN: 0.85,
-  CAMERA_ZOOM_MAX: 5,
+  CAMERA_ZOOM_MAX: 2,
   CAMERA_ZOOM_STEP: 0.25,
   CAMERA_DEFAULT_ZOOM: 1.25,
 

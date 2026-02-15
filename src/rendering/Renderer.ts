@@ -250,10 +250,28 @@ export class Renderer {
     ctx.restore();
   }
 
-  // ───────── Fog (delegated to FogEffect) ─────────
+  // ───────── Profile-driven effects ─────────
 
-  drawBoundaryFog(cols: number, rows: number, side: 'back' | 'front' | 'all' = 'all'): void {
-    this.fogEffect.drawBoundaryFog(this.ctx, this.camera, this.canvas.width, this.canvas.height, cols, rows, side);
+  /** Push lighting profile values into vignette, fog wisps, and snow.
+   *  Call once per frame before drawing. */
+  applyEffectProfile(profile: {
+    vignetteR: number; vignetteG: number; vignetteB: number; vignetteOpacity: number;
+    fogWispR: number; fogWispG: number; fogWispB: number; fogWispOpacity: number; fogWispAdditive: boolean;
+    snowOpacity: number;
+  }): void {
+    this.fogEffect.applyVignetteProfile(
+      profile.vignetteR, profile.vignetteG, profile.vignetteB, profile.vignetteOpacity,
+    );
+    this.fogEffect.applyWispProfile(
+      profile.fogWispR, profile.fogWispG, profile.fogWispB, profile.fogWispOpacity, profile.fogWispAdditive,
+    );
+    this.snowfallEffect.opacity = profile.snowOpacity;
+  }
+
+  // ───────── Vignette + Fog (delegated to FogEffect) ─────────
+
+  drawBoundaryVignette(cols: number, rows: number, side: 'back' | 'front' | 'all' = 'all'): void {
+    this.fogEffect.drawBoundaryVignette(this.ctx, this.camera, this.canvas.width, this.canvas.height, cols, rows, side);
   }
 
   drawAnimatedEdgeFog(cols: number, rows: number, time: number, side: 'back' | 'front' | 'all' = 'all'): void {
