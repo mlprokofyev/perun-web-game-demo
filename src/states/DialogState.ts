@@ -1,7 +1,8 @@
 import { GameState } from '../core/GameState';
-import type { DialogTree } from '../dialog/DialogData';
+import type { DialogTree, DialogChoice } from '../dialog/DialogData';
 import type { DialogUI } from '../ui/DialogUI';
 import { eventBus } from '../core/EventBus';
+import { gameFlags } from '../core/GameFlags';
 
 /**
  * Game state for an active dialog.
@@ -56,16 +57,41 @@ export class DialogState extends GameState {
       return;
     }
 
-    this.ui.show(
-      node,
-      (choiceIndex) => {
-        const choice = node.choices[choiceIndex];
-        if (!choice) return;
+    // Filter choices by condition (if any)
+    const visibleChoices: { original: DialogChoice; originalIndex: number }[] = [];
+    for (let i = 0; i < node.choices.length; i++) {
+      const c = node.choices[i];
+      if (!c.condition || c.condition(gameFlags)) {
+        visibleChoices.push({ original: c, originalIndex: i });
+      }
+    }
 
-        eventBus.emit('dialog:choice', { dialogId: this.tree.id, choiceIndex });
+    // If all choices are filtered out, close the dialog
+    if (visibleChoices.length === 0) {
+      this.onClose();
+      return;
+    }
+
+    // Build a filtered node for the UI (only visible choices)
+    const filteredNode = {
+      ...node,
+      choices: visibleChoices.map(vc => vc.original),
+    };
+
+    this.ui.show(
+      filteredNode,
+      (filteredIndex) => {
+        const vc = visibleChoices[filteredIndex];
+        if (!vc) return;
+
+        const choice = vc.original;
+
+        // Execute onSelect callback before advancing
+        choice.onSelect?.(gameFlags);
+
+        eventBus.emit('dialog:choice', { dialogId: this.tree.id, choiceIndex: vc.originalIndex });
 
         if (choice.nextNodeId === null) {
-          // End of dialog
           this.onClose();
           return;
         }
@@ -74,7 +100,6 @@ export class DialogState extends GameState {
         this.showCurrentNode();
       },
       () => {
-        // ESC pressed — close the entire dialog immediately
         this.onClose();
       },
     );

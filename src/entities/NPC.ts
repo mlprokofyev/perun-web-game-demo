@@ -96,22 +96,31 @@ export class NPC extends Entity {
           this.opacity = Math.min(1, this.fadeElapsed / this.fadeDuration);
         }
 
-        // Check arrival
+        // Re-aim toward target each frame (steering) so deflections
+        // by solid objects don't cause permanent drift / overshoot.
         const dx = this.targetCol - this.transform.x;
         const dy = this.targetRow - this.transform.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 0.1) {
+        // Arrival check — snap if close enough or if a single step
+        // would overshoot the remaining distance.
+        const stepSize = this.gridSpeed * dt;
+        if (dist < Math.max(0.1, stepSize)) {
           this.transform.set(this.targetCol, this.targetRow);
           this.velocity.vx = 0;
           this.velocity.vy = 0;
           this.opacity = 1;
           this.npcState = NPCState.IDLE;
           this.interactable = true;
+          this.interactLabel = 'talk';
           this.collider.solid = true; // become solid once settled
           // Switch to idle animation using last facing direction
           const dir = this.animController.getDirection();
           this.animController.play(`idle_${dir}`);
+        } else {
+          // Steer toward target
+          this.velocity.vx = (dx / dist) * this.gridSpeed;
+          this.velocity.vy = (dy / dist) * this.gridSpeed;
         }
         break;
       }

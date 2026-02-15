@@ -14,15 +14,13 @@ export function generateWorld(): TileMap {
   ]);
 
   // 3 trees (repositioned for 6×6 grid)
-   tileMap.addObject({ col: 0.7,   row: 4.7, assetId: 'obj_tree_med_snow', width: 438, height: 600, srcW: 511, srcH: 700, anchorY: 0.92, solid: true, solidCols: 0.9, solidRows: 0.9, shadowRadius: 35 });
+   tileMap.addObject({ col: 4.5,   row: 3.1, assetId: 'obj_tree_med_snow', width: 438, height: 600, srcW: 511, srcH: 700, anchorY: 0.92, solid: true, solidCols: 0.9, solidRows: 0.9, shadowRadius: 35 });
   tileMap.addObject({ col: 3.5, row: 0.7,   assetId: 'obj_tree_snow_big_1', width: 438, height: 600, srcW: 511, srcH: 700, anchorY: 0.92, solid: true, solidCols: 0.9, solidRows: 0.9, shadowRadius: 45 });
-  tileMap.addObject({ col: 4.7,   row: 3.5, assetId: 'obj_tree_med_snow', width: 438, height: 600, srcW: 511, srcH: 700, anchorY: 0.92, solid: true, solidCols: 0.9, solidRows: 0.9, shadowRadius: 35 });
-
-  // Stones near trees
-  tileMap.addObject({ col: 4.8, row: 3,   assetId: 'obj_stone', width: 52, height: 44, anchorY: 0.85, solid: false, shadowRadius: 10 });
+  tileMap.addObject({ col: 0.5,   row: 4.9, assetId: 'obj_tree_pine_snow', width: 438, height: 652, srcW: 625, srcH: 931, anchorY: 0.92, solid: true, solidCols: 0.9, solidRows: 0.9, shadowRadius: 35 });
 
   // Sticks pile with snow — low ground object, short shadow over full footprint
   tileMap.addObject({
+    id: 'stick_pile_1',
     col: 0.5, row: 3.1,
     assetId: 'obj_sticks_snow',
     width: 130, height: 80,
@@ -37,6 +35,7 @@ export function generateWorld(): TileMap {
 
   // Second sticks pile
   tileMap.addObject({
+    id: 'stick_pile_2',
     col: 2.8, row: 2.2,
     assetId: 'obj_sticks_snow',
     width: 130, height: 80,
