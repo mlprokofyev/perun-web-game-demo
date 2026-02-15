@@ -8,6 +8,8 @@
  * The 2D rendering pipeline (Renderer.ts) is completely untouched.
  */
 
+import { Config } from '../core/Config';
+
 const MAX_LIGHTS = 16;
 const MAX_OCCLUDERS = 32;
 const MAX_HF = 8;         // max simultaneous height-fade zones (entities)
@@ -35,6 +37,7 @@ uniform sampler2D u_scene;
 uniform vec2      u_resolution;
 uniform vec3      u_ambientColor;
 uniform float     u_time;
+uniform float     u_isoRatio;   /* tile width / tile height (2.0 for standard 2:1 iso) */
 
 /* Lights */
 uniform int   u_numLights;
@@ -50,8 +53,9 @@ uniform vec2  u_occPos   [MAX_OCCLUDERS];
 uniform float u_occRadius[MAX_OCCLUDERS];
 uniform float u_occHeight[MAX_OCCLUDERS];
 
-/* Shadow length control */
+/* Shadow controls */
 uniform float u_shadowLenMult;
+uniform float u_shadowOpacity;  /* 0 = no shadows, 1 = fully opaque */
 
 /* Height-fade zones — reduces shadow on tall entities (feet=full shadow, head=lit) */
 uniform int   u_numHF;                  /* number of active height-fade zones */
@@ -59,6 +63,7 @@ uniform vec2  u_hfFootPos [MAX_HF];     /* foot center in GL screen coords */
 uniform float u_hfWidth   [MAX_HF];     /* sprite width in pixels */
 uniform float u_hfHeight  [MAX_HF];     /* sprite height in pixels */
 uniform float u_hfStrength[MAX_HF];     /* 0-1: how much shadow is reduced at head */
+uniform int   u_hfSpriteOnly[MAX_HF];  /* 1 = use sprite-alpha only, skip rect fallback */
 
 /* Volumetric sprite shading — cylindrical diffuse + rim light */
 uniform sampler2D u_spriteTex;
@@ -127,15 +132,21 @@ void main() {
     vec4 scene   = texture(u_scene, v_uv);
     vec2 fragPos = v_uv * u_resolution;
 
-    /* start with ambient */
-    vec3 light = u_ambientColor;
+    /* Ambient is non-directional — kept separate so volumetric diffuse
+       doesn't darken it (ambient wraps around uniformly). */
+    vec3 ambient = u_ambientColor;
+    vec3 direct  = vec3(0.0);          /* directional / point-light accumulator */
 
     /* accumulate point lights */
     for (int i = 0; i < MAX_LIGHTS; i++) {
         if (i >= u_numLights) break;
 
-        float dist     = distance(fragPos, u_lightPos[i]);
-        float normDist = clamp(dist / u_lightRadius[i], 0.0, 1.0);
+        /* Isometric elliptical distance — stretch Y by isoRatio so the light
+           pool matches the ground plane (wider horizontally, compressed vertically). */
+        vec2 delta    = fragPos - u_lightPos[i];
+        delta.y      *= u_isoRatio;
+        float dist    = length(delta);
+        float normDist = clamp(dist / (u_lightRadius[i] * u_isoRatio), 0.0, 1.0);
 
         /* smooth quadratic falloff (gentle, wide glow) */
         float atten = 1.0 - normDist * normDist;
@@ -182,8 +193,8 @@ void main() {
                 }
             }
 
-            /* Fallback: soft rectangular containment */
-            if (hfMask < 0.01) {
+            /* Fallback: soft rectangular containment (skip for sprite-alpha-only zones) */
+            if (hfMask < 0.01 && u_hfSpriteOnly[k] == 0) {
                 float dxx = abs(fragPos.x - u_hfFootPos[k].x);
                 hfMask = 1.0 - smoothstep(u_hfWidth[k] * 0.1, u_hfWidth[k] * 1.0, dxx);
             }
@@ -201,10 +212,15 @@ void main() {
             }
         }
 
-        light += u_lightColor[i] * u_lightIntensity[i] * atten * flicker * shadow;
+        /* Apply shadow opacity — blend shadow toward 1.0 (no shadow) */
+        shadow = mix(1.0, shadow, u_shadowOpacity);
+
+        direct += u_lightColor[i] * u_lightIntensity[i] * atten * flicker * shadow;
     }
 
     /* ── Volumetric sprite shading ── cylindrical diffuse + rim light ── */
+    /* IMPORTANT: diffuse only modulates the directional accumulator.
+       Ambient is non-directional and should not be darkened by the cylinder. */
     if (u_volActive > 0 && u_numLights > 0) {
         vec2 sprMin  = u_spriteRect.xy;
         vec2 sprSize = u_spriteRect.zw;
@@ -234,9 +250,9 @@ void main() {
                 vec3  L        = normalize(vec3(toLight, isoLZ));
                 float NdotL    = dot(N, L);
 
-                /* Half-Lambert diffuse — never fully dark */
+                /* Half-Lambert diffuse — applied ONLY to directional light */
                 float diffuse = NdotL * 0.5 + 0.5;
-                light *= mix(vec3(1.0), vec3(diffuse), u_volDiffuse);
+                direct *= mix(vec3(1.0), vec3(diffuse), u_volDiffuse);
 
                 /* Rim light via alpha-edge detection.
                    Sample alpha at ±1.5 px in each direction;
@@ -254,12 +270,13 @@ void main() {
                 /* Fresnel-like: brighter on the side facing away from light */
                 float rim = pow(1.0 - clamp(NdotL, 0.0, 1.0), 2.0)
                           * edge * u_volRim;
-                light += u_volRimColor * rim;
+                direct += u_volRimColor * rim;
             }
         }
     }
 
-    light = min(light, vec3(1.2));   /* allow slight bloom from rim */
+    /* Combine ambient + directional, clamp to allow slight bloom from rim */
+    vec3 light = min(ambient + direct, vec3(1.2));
     fragColor = vec4(scene.rgb * light, 1.0);
 }`;
 
@@ -315,10 +332,11 @@ export class PostProcessPipeline {
   private ambientB = 0.2;
   private time = 0;
   private shadowLenMult = 2.0;
+  private shadowOpacity = 1.0;
   private _enabled = true;
 
   /* Height-fade zones (screen coords, top=0) — one per entity */
-  private hfZones: { footX: number; footY: number; width: number; height: number; strength: number }[] = [];
+  private hfZones: { footX: number; footY: number; width: number; height: number; strength: number; spriteOnly: boolean }[] = [];
 
   /* Volumetric sprite shading */
   private spriteTex: WebGLTexture | null = null;
@@ -425,9 +443,11 @@ export class PostProcessPipeline {
       'u_resolution',
       'u_ambientColor',
       'u_time',
+      'u_isoRatio',
       'u_numLights',
       'u_numOccluders',
       'u_shadowLenMult',
+      'u_shadowOpacity',
       'u_numHF',
       /* volumetric */
       'u_spriteTex',
@@ -470,6 +490,7 @@ export class PostProcessPipeline {
       this.loc[`u_hfWidth[${i}]`] = gl.getUniformLocation(prog, `u_hfWidth[${i}]`);
       this.loc[`u_hfHeight[${i}]`] = gl.getUniformLocation(prog, `u_hfHeight[${i}]`);
       this.loc[`u_hfStrength[${i}]`] = gl.getUniformLocation(prog, `u_hfStrength[${i}]`);
+      this.loc[`u_hfSpriteOnly[${i}]`] = gl.getUniformLocation(prog, `u_hfSpriteOnly[${i}]`);
     }
   }
 
@@ -559,6 +580,10 @@ export class PostProcessPipeline {
     this.shadowLenMult = m;
   }
 
+  setShadowOpacity(o: number): void {
+    this.shadowOpacity = o;
+  }
+
   clearOccluders(): void {
     this.occluders.length = 0;
   }
@@ -571,10 +596,12 @@ export class PostProcessPipeline {
 
   /** Register a height-fade zone for an entity (screen coords, top=0).
    *  Feet = full shadow, head = shadow reduced by `strength`.
-   *  Call once per entity per frame (after clearHeightFade). */
-  addHeightFade(footX: number, footY: number, width: number, height: number, strength: number): void {
+   *  Call once per entity per frame (after clearHeightFade).
+   *  `spriteAlphaOnly` — when true, only apply fade on pixels with sprite alpha
+   *  (no rectangular fallback). Use for the player / volumetric sprite entity. */
+  addHeightFade(footX: number, footY: number, width: number, height: number, strength: number, spriteAlphaOnly = false): void {
     if (this.hfZones.length < MAX_HF) {
-      this.hfZones.push({ footX, footY, width, height, strength });
+      this.hfZones.push({ footX, footY, width, height, strength, spriteOnly: spriteAlphaOnly });
     }
   }
 
@@ -653,9 +680,11 @@ export class PostProcessPipeline {
       this.ambientB,
     );
     gl.uniform1f(this.loc['u_time'], this.time);
+    gl.uniform1f(this.loc['u_isoRatio'], Config.TILE_WIDTH / Config.TILE_HEIGHT);
     gl.uniform1i(this.loc['u_numLights'], this.lights.length);
     gl.uniform1i(this.loc['u_numOccluders'], this.occluders.length);
     gl.uniform1f(this.loc['u_shadowLenMult'], this.shadowLenMult);
+    gl.uniform1f(this.loc['u_shadowOpacity'], this.shadowOpacity);
 
     /* Per-light uniforms */
     const h = this.glCanvas.height;
@@ -685,6 +714,7 @@ export class PostProcessPipeline {
       gl.uniform1f(this.loc[`u_hfWidth[${i}]`], z.width);
       gl.uniform1f(this.loc[`u_hfHeight[${i}]`], z.height);
       gl.uniform1f(this.loc[`u_hfStrength[${i}]`], z.strength);
+      gl.uniform1i(this.loc[`u_hfSpriteOnly[${i}]`], z.spriteOnly ? 1 : 0);
     }
 
     /* Volumetric sprite shading */

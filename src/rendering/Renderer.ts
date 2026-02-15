@@ -34,6 +34,8 @@ export interface RenderItem {
   drawH: number;
   /** Draw opacity (0–1). Defaults to 1. */
   opacity: number;
+  /** Rotation in radians around the anchor point. Defaults to 0. */
+  rotation: number;
 }
 
 export class Renderer {
@@ -67,11 +69,16 @@ export class Renderer {
     this.ctx.imageSmoothingEnabled = false;
   }
 
-  private static readonly BG_COLOR = '#060812';
+  private bgColor = '#060812';
+
+  /** Set background color (hex string or CSS color). */
+  setBackgroundColor(color: string): void {
+    this.bgColor = color;
+  }
 
   /** Clear the canvas for a new frame */
   clear(): void {
-    this.ctx.fillStyle = Renderer.BG_COLOR;
+    this.ctx.fillStyle = this.bgColor;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.renderQueue.length = 0;
   }
@@ -92,6 +99,7 @@ export class Renderer {
       drawW,
       drawH,
       opacity: 1,
+      rotation: 0,
     });
   }
 
@@ -125,6 +133,7 @@ export class Renderer {
       drawW,
       drawH,
       opacity: entity.opacity,
+      rotation: 0,
     });
   }
 
@@ -136,13 +145,20 @@ export class Renderer {
     w: number, h: number,
     anchorY: number = 0.9,
     srcW?: number, srcH?: number,
+    layer: RenderLayer = RenderLayer.OBJECT,
+    rotation: number = 0,
   ): void {
     const world = isoToScreen(col, row);
+    // Ground-layer objects: push depth to the sprite's visual bottom edge so
+    // they sort after all tiles they overlap (sprite extends below center).
+    const bottomRowOffset = layer === RenderLayer.GROUND
+      ? (h * (1 - anchorY)) / Config.TILE_HEIGHT  // how many rows the sprite extends below center
+      : 0;
     this.renderQueue.push({
-      layer: RenderLayer.OBJECT,
+      layer,
       screenX: world.x,
       screenY: world.y,
-      depth: depthOf(col, row, 0),
+      depth: depthOf(col, row + bottomRowOffset, 0) + 0.01,
       assetId,
       srcX: 0, srcY: 0, srcW: srcW ?? w, srcH: srcH ?? h,
       offsetX: -w / 2,
@@ -150,6 +166,7 @@ export class Renderer {
       drawW: w,
       drawH: h,
       opacity: 1,
+      rotation,
     });
   }
 
@@ -179,11 +196,26 @@ export class Renderer {
 
       if (item.opacity < 1) this.ctx.globalAlpha = item.opacity;
 
-      this.ctx.drawImage(
-        asset as CanvasImageSource,
-        item.srcX, item.srcY, item.srcW, item.srcH,
-        dx, dy, dw, dh
-      );
+      if (item.rotation !== 0) {
+        // Rotate around the sprite's center
+        const cx = dx + dw / 2;
+        const cy = dy + dh / 2;
+        this.ctx.save();
+        this.ctx.translate(cx, cy);
+        this.ctx.rotate(item.rotation);
+        this.ctx.drawImage(
+          asset as CanvasImageSource,
+          item.srcX, item.srcY, item.srcW, item.srcH,
+          -dw / 2, -dh / 2, dw, dh
+        );
+        this.ctx.restore();
+      } else {
+        this.ctx.drawImage(
+          asset as CanvasImageSource,
+          item.srcX, item.srcY, item.srcW, item.srcH,
+          dx, dy, dw, dh
+        );
+      }
 
       if (item.opacity < 1) this.ctx.globalAlpha = 1;
     }

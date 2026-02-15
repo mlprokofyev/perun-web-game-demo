@@ -1,6 +1,6 @@
 # Perun — Isometric Pixel Art Game
 
-A 2.5D isometric pixel art browser game built with TypeScript, HTML5 Canvas, and a custom engine. Features a WebGL2 post-processing pipeline for real-time lighting and shadows, NPC interactions, and a branching dialog system.
+A 2.5D isometric pixel art browser game built with TypeScript, HTML5 Canvas, and a custom engine. Features a WebGL2 post-processing pipeline for real-time lighting and shadows, day/night cycle, campfire with particle effects, NPC interactions, and a branching dialog system.
 
 ## Quick Start
 
@@ -22,8 +22,10 @@ Open `http://localhost:5173` in your browser.
 | `Enter` / `Space` | Confirm dialog choice |
 | `ESC` | Close dialog |
 | Mouse wheel | Zoom in/out |
-| `G` (hold) | Show debug grid overlay |
+| `T` | Toggle day/night mode |
+| `N` | Toggle snowfall |
 | `L` | Toggle lighting/shadows |
+| `G` (hold) | Show debug grid overlay |
 
 ## Build
 
@@ -49,7 +51,7 @@ npm run preview   # Serve the production build locally
 │   ├── data/assets.json              Asset manifest (loaded at boot)
 │   └── sprites/
 │       ├── characters/               Player + NPC sprite sheets
-│       ├── objects/                   Houses, trees, stones
+│       ├── objects/                   Houses, trees, stones, campfire, sticks
 │       └── tiles/                    Isometric ground tiles
 ├── src/
 │   ├── main.ts                       Boot: load manifest → init Game
@@ -67,6 +69,7 @@ npm run preview   # Serve the production build locally
 │   │   ├── Entity.ts                 Base entity (optional components)
 │   │   ├── Player.ts                 Player with input-driven movement
 │   │   ├── NPC.ts                    NPC with walk-to, fade-in, state machine
+│   │   ├── Campfire.ts               Campfire entity with spark particles
 │   │   ├── Components.ts             Transform, Velocity, Collider
 │   │   └── AnimationController.ts    Sprite sheet animation state machine
 │   ├── systems/
@@ -78,7 +81,9 @@ npm run preview   # Serve the production build locally
 │   │   ├── Camera.ts                 Viewport with smooth follow & zoom
 │   │   ├── IsometricUtils.ts         Coordinate conversion
 │   │   ├── PostProcessPipeline.ts    WebGL2 lighting & shadows
+│   │   ├── LightingProfile.ts        Day/night presets + lerp transition
 │   │   └── effects/
+│   │       ├── FireLightEffect.ts    Procedural fire flicker (breath+wobble+crackle)
 │   │       ├── SnowfallEffect.ts     Particle snowfall
 │   │       └── FogEffect.ts          Boundary + animated wisps
 │   ├── dialog/
@@ -108,7 +113,7 @@ npm run preview   # Serve the production build locally
 | Document | Contents |
 |----------|----------|
 | **[Architecture](docs/architecture.md)** | Engine design, entity system, game states, events, physics, input |
-| **[Rendering](docs/rendering.md)** | Render pipeline, lighting & shadow system, fog, snowfall, shader tuning |
+| **[Rendering](docs/rendering.md)** | Render pipeline, lighting & shadow system, day/night profiles, fire effects, fog, snowfall |
 | **[Content Guide](docs/content-guide.md)** | World coordinates, adding tiles/objects/animations/NPCs/dialogs |
 | **[Roadmap](docs/roadmap.md)** | Completed work, remaining tasks, priority matrix |
 

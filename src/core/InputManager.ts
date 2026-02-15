@@ -9,6 +9,8 @@ export enum Action {
   RUN          = 'RUN',
   INTERACT     = 'INTERACT',
   TOGGLE_LIGHT = 'TOGGLE_LIGHT',
+  TOGGLE_SNOW  = 'TOGGLE_SNOW',
+  TOGGLE_TIME  = 'TOGGLE_TIME',
   DEBUG_GRID   = 'DEBUG_GRID',
   PAUSE        = 'PAUSE',
 }
@@ -25,6 +27,8 @@ export const DEFAULT_BINDINGS: KeyBindings = {
   [Action.RUN]:          ['ShiftLeft', 'ShiftRight'],
   [Action.INTERACT]:     ['KeyE'],
   [Action.TOGGLE_LIGHT]: ['KeyL'],
+  [Action.TOGGLE_SNOW]:  ['KeyN'],
+  [Action.TOGGLE_TIME]:  ['KeyT'],
   [Action.DEBUG_GRID]:   ['KeyG'],
   [Action.PAUSE]:        ['Escape'],
 };

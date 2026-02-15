@@ -25,7 +25,7 @@ export const Config = {
   CHAR_DRAW_H: 128,
 
   /** Player defaults */
-  PLAYER_START_COL: 1.3,
+  PLAYER_START_COL: 1.1,
   PLAYER_START_ROW: 2.8,
   PLAYER_SPEED: 80,   // pixels per second in world space
   PLAYER_RUN_MULT: 1.8,
@@ -64,8 +64,8 @@ export const Config = {
   WINDOW_LIGHT_R: 1.0,
   WINDOW_LIGHT_G: 0.65,
   WINDOW_LIGHT_B: 0.25,
-  WINDOW_LIGHT_INTENSITY: 0.8,
-  WINDOW_LIGHT_FLICKER: 0.15,
+  WINDOW_LIGHT_INTENSITY: 0.5,
+  WINDOW_LIGHT_FLICKER: 0.3,
 
   /** Player shadow-casting radius in asset pixels */
   PLAYER_SHADOW_RADIUS: 15,
@@ -147,6 +147,19 @@ export const Config = {
 
   /** NPC interaction */
   NPC_INTERACT_RADIUS: 1.2,  // grid units — distance within which "Press E" shows
+
+  /** Campfire — position and light */
+  CAMPFIRE_COL: 2.5,
+  CAMPFIRE_ROW: 4.4,
+  CAMPFIRE_DRAW_H: 80,        // on-screen height in world pixels
+  CAMPFIRE_LIGHT_RADIUS: 110,
+  CAMPFIRE_LIGHT_HEIGHT: 25,  // vertical offset above ground for light origin
+  CAMPFIRE_LIGHT_R: 1.0,
+  CAMPFIRE_LIGHT_G: 0.55,
+  CAMPFIRE_LIGHT_B: 0.12,
+  CAMPFIRE_LIGHT_INTENSITY: 0.7,
+  CAMPFIRE_LIGHT_FLICKER: 0.6,
+  CAMPFIRE_SHADOW_RADIUS: 9,
 
   /** Debug */
   DEBUG: true,

@@ -21,6 +21,45 @@ export function generateWorld(): TileMap {
   // Stones near trees
   tileMap.addObject({ col: 4.8, row: 3,   assetId: 'obj_stone', width: 52, height: 44, anchorY: 0.85, solid: false, shadowRadius: 10 });
 
+  // Sticks pile with snow — low ground object, short shadow over full footprint
+  tileMap.addObject({
+    col: 0.5, row: 3.1,
+    assetId: 'obj_sticks_snow',
+    width: 130, height: 80,
+    srcW: 258, srcH: 158,
+    anchorY: 0.85,
+    solid: true,
+    solidCols: 0.6,
+    solidRows: 0.4,
+    shadowRadius: 0,      // no shadow for flat ground object
+    rotation: 25,
+  });
+
+  // Second sticks pile
+  tileMap.addObject({
+    col: 2.8, row: 2.2,
+    assetId: 'obj_sticks_snow',
+    width: 130, height: 80,
+    srcW: 258, srcH: 158,
+    anchorY: 0.85,
+    solid: true,
+    solidCols: 0.1,
+    solidRows: 0.1,
+    shadowRadius: 0,
+  });
+
+  // Campfire pit — stone ring base sprite, rendered on ground layer (player always above)
+  tileMap.addObject({
+    col: Config.CAMPFIRE_COL, row: Config.CAMPFIRE_ROW,
+    assetId: 'obj_campfire',
+    width: 140, height: 90,
+    srcW: 182, srcH: 116,
+    anchorY: 0.5,          // vertically centered on the grid position
+    solid: false,          // collision handled by Campfire entity
+    shadowRadius: 20,
+    groundLayer: true,
+  });
+
   // 1 house — high-res 890×890 drawn at 600×600 (~2.75 tile footprint)
   // Shadow grid scaled ×1.429 from 420 base
   tileMap.addObject({
