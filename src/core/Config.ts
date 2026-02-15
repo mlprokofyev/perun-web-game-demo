@@ -133,6 +133,10 @@ export const Config = {
   DOG_IDLE_SRC_H: 123,
   DOG_DRAW_H: 80,        // desired on-screen draw height (reference = idle frame)
 
+  /** Dog NPC — shadow casting */
+  DOG_SHADOW_RADIUS: 10,  // occluder radius in asset-pixels (smaller than player)
+  DOG_FOOT_OFFSET: 5,     // vertical offset from sprite bottom to visual feet (asset px)
+
   /** Dog NPC — behavior */
   DOG_SPEED: 60,          // world px/s
   DOG_SPAWN_COL: 5.7,

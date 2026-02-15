@@ -518,10 +518,37 @@ export class Game {
       this.postProcess.addOccluder({ x: pScreen.x - flankOff, y: feetY, radius: flankR, height: pShadowH * 0.8 });
       this.postProcess.addOccluder({ x: pScreen.x + flankOff, y: feetY, radius: flankR, height: pShadowH * 0.8 });
 
+      // NPC shadow casting — register each NPC as an occluder + height-fade zone
+      for (const e of this.entityManager.getAll()) {
+        if (!(e instanceof NPC)) continue;
+        if (e.opacity <= 0) continue; // skip fully transparent NPCs
+
+        const nIso = isoToScreen(e.transform.x, e.transform.y);
+        const nScreen = this.camera.worldToScreen(nIso.x, nIso.y);
+        const nFootOffset = Config.DOG_FOOT_OFFSET * zoom;
+        const nFeetY = nScreen.y + Config.TILE_HEIGHT / 2 * zoom - nFootOffset;
+
+        // NPC occluder — single circle (adequate for small sprites)
+        const nShadowR = Config.DOG_SHADOW_RADIUS * zoom;
+        const nAnim = e.animController?.getCurrentFrame();
+        const nDrawH = (nAnim?.height ?? Config.DOG_DRAW_H) * e.drawScale * zoom;
+        this.postProcess.addOccluder({ x: nScreen.x, y: nFeetY, radius: nShadowR, height: nDrawH });
+
+        // NPC height-fade — prevents uniform darkening when inside shadow
+        const nDrawW = (nAnim?.width ?? Config.DOG_IDLE_SRC_W) * e.drawScale * zoom;
+        this.postProcess.addHeightFade(
+          nScreen.x,
+          nFeetY,
+          nDrawW,
+          nDrawH,
+          Config.SHADOW_HEIGHT_FADE * 0.7, // slightly less than player (shorter entity)
+        );
+      }
+
       // Height fade for player — head stays lit when feet enter shadow
       const spriteH = CHAR_DRAW_H * zoom;
       const spriteW = CHAR_DRAW_W * zoom;
-      this.postProcess.setHeightFade(
+      this.postProcess.addHeightFade(
         pScreen.x,
         feetY,
         spriteW,
