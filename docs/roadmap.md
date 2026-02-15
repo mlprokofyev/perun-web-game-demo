@@ -2,7 +2,7 @@
 
 > Completed work, remaining tasks, and priority matrix.
 >
-> Last updated: 2026-02-15
+> Last updated: 2026-02-16
 
 ---
 
@@ -41,6 +41,7 @@
 | Interactable marker | Pixel-art SVG arrow as DOM overlay, zoom-aware scaling + bob animation |
 | Dialog UI controls | Arrow/Enter/ESC navigation, mouse support, controls hint bar |
 | Dog NPC (proof of concept) | Walk-to behavior with re-aim steering, 6-node branching dialog tree with quest integration |
+| Animation stop-frame fix | Player snaps to frame 0 (neutral stance) on movement stop instead of freezing mid-stride |
 
 ### Phase 2b: Environment & Atmosphere
 
@@ -144,6 +145,7 @@
 | **P1** | InteractableObject + campfire interaction | 1 day | Done |
 | **P1** | Secret item + launch animation | 0.5 day | Done |
 | **P1** | Item preview dialog | 0.5 day | Done |
+| **P1** | Animation stop-frame fix | — | Done |
 | **P2** | Data-driven maps (JSON) | 2 days | — |
 | **P2** | Scene/Map transitions | 1 day | — |
 | **P2** | Generalize volumetric rendering | 2 days | — |
@@ -179,7 +181,7 @@
 | entities/Collectible.ts | ~188 | IDLE/PICKING_UP/LAUNCHING/DONE states, parabolic arc launch |
 | entities/InteractableObject.ts | ~51 | Generic invisible interactable for static objects |
 | entities/TriggerZone.ts | ~101 | Invisible trigger with enter/exit events |
-| entities/AnimationController.ts | ~125 | Typed Direction |
+| entities/AnimationController.ts | ~122 | Typed Direction, stop-on-frame-0, idle timeout |
 | entities/Components.ts | ~27 | Transform, Velocity, Collider |
 | items/ItemDef.ts | ~75 | Item type + registry. 4 built-in items (stick, bone, stone, ancient_ember) |
 | items/Inventory.ts | ~137 | Add/remove/has/count, source tracking, EventBus integration |

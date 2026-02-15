@@ -2,24 +2,61 @@ import { Camera } from '../Camera';
 import { isoToScreen } from '../IsometricUtils';
 import { Config } from '../../core/Config';
 
-/** Background colour used by the vignette — should match Renderer.BG_COLOR */
-const BG_COLOR = '#060812';
-
 type FogSide = 'back' | 'front' | 'all';
 
+/** Convert 0-1 RGB to a CSS hex color string */
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
 /**
- * Boundary fog (radial vignette + edge gradients) and animated edge wisps.
- * Extracted from Renderer to keep it focused on queue management.
+ * Two independent visual layers:
+ *   1. **Boundary vignette** — static radial darkening + edge gradients (framing).
+ *   2. **Animated edge fog** — drifting wisps simulating atmospheric fog (weather).
+ *
+ * Each has its own color, opacity, and (for wisps) blend mode, all driven
+ * per-frame from the active LightingProfile.
  */
 export class FogEffect {
 
+  // ── Vignette state ──────────────────────────────
+  private vignetteColor = '#060812';
+  private vignetteOpacity = 1.0;
+
+  // ── Wisp state ──────────────────────────────────
+  private wispR255 = 6;
+  private wispG255 = 8;
+  private wispB255 = 18;
+  private wispOpacity = 1.0;
+  private wispAdditive = true;
+
+  // ── Apply profile ───────────────────────────────
+
+  /** Push vignette params from the active lighting profile. */
+  applyVignetteProfile(r: number, g: number, b: number, opacity: number): void {
+    this.vignetteColor = rgbToHex(r, g, b);
+    this.vignetteOpacity = opacity;
+  }
+
+  /** Push wisp params from the active lighting profile. */
+  applyWispProfile(r: number, g: number, b: number, opacity: number, additive: boolean): void {
+    this.wispR255 = Math.round(r * 255);
+    this.wispG255 = Math.round(g * 255);
+    this.wispB255 = Math.round(b * 255);
+    this.wispOpacity = opacity;
+    this.wispAdditive = additive;
+  }
+
+  // ── 1. Boundary vignette ────────────────────────
+
   /**
-   * Draw dark fog around map boundaries using radial vignette + edge gradients.
+   * Draw static vignette around map boundaries (radial + edge gradients).
    * @param side — 'back'  draws vignette + top/left gradients (behind objects)
    *               'front' draws bottom/right gradients (over objects)
    *               'all'   draws everything (legacy)
    */
-  drawBoundaryFog(
+  drawBoundaryVignette(
     ctx: CanvasRenderingContext2D,
     cam: Camera,
     canvasW: number,
@@ -28,6 +65,7 @@ export class FogEffect {
     rows: number,
     side: FogSide = 'all',
   ): void {
+    if (this.vignetteOpacity < 0.001) return;
     const w = canvasW;
     const h = canvasH;
 
@@ -51,6 +89,8 @@ export class FogEffect {
 
     // Wide, soft fog — multiple overlapping passes for a smooth falloff
     const fogSize = 400;
+    const color = this.vignetteColor;
+    const op = this.vignetteOpacity;
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
@@ -66,14 +106,14 @@ export class FogEffect {
       const maxR = Math.max(rx, ry, w, h);
 
       ctx.save();
-      ctx.globalAlpha = backMult;
+      ctx.globalAlpha = backMult * op;
       ctx.translate(cx, cy);
       ctx.scale(1, ry / rx || 1);
       const radGrad = ctx.createRadialGradient(0, 0, rx * 0.55, 0, 0, rx * 1.1);
       radGrad.addColorStop(0, 'transparent');
       radGrad.addColorStop(0.5, 'transparent');
-      radGrad.addColorStop(0.75, BG_COLOR + '80');
-      radGrad.addColorStop(1, BG_COLOR);
+      radGrad.addColorStop(0.75, color + '80');
+      radGrad.addColorStop(1, color);
       ctx.fillStyle = radGrad;
       ctx.fillRect(-maxR, -maxR / (ry / rx || 1), maxR * 2, maxR * 2 / (ry / rx || 1));
       ctx.restore();
@@ -95,12 +135,12 @@ export class FogEffect {
 
       // Top (back)
       if (drawTop) {
-        const opT = pass.opacity * backMult;
+        const opT = pass.opacity * backMult * op;
         const aT = Math.round(opT * 255).toString(16).padStart(2, '0');
         const topY = st.y;
         const gT = ctx.createLinearGradient(0, topY - s, 0, topY + s);
-        gT.addColorStop(0, BG_COLOR + aT);
-        gT.addColorStop(0.4, BG_COLOR + aT);
+        gT.addColorStop(0, color + aT);
+        gT.addColorStop(0.4, color + aT);
         gT.addColorStop(1, 'transparent');
         ctx.fillStyle = gT;
         ctx.fillRect(0, 0, w, topY + s);
@@ -108,24 +148,24 @@ export class FogEffect {
 
       // Bottom (front)
       if (drawBottom) {
-        const aB = Math.round(pass.opacity * 255).toString(16).padStart(2, '0');
+        const aB = Math.round(pass.opacity * op * 255).toString(16).padStart(2, '0');
         const botY = sb.y;
         const gB = ctx.createLinearGradient(0, botY - s, 0, botY + s);
         gB.addColorStop(0, 'transparent');
-        gB.addColorStop(0.6, BG_COLOR + aB);
-        gB.addColorStop(1, BG_COLOR + aB);
+        gB.addColorStop(0.6, color + aB);
+        gB.addColorStop(1, color + aB);
         ctx.fillStyle = gB;
         ctx.fillRect(0, botY - s, w, h - botY + s * 2);
       }
 
       // Left (back)
       if (drawLeft) {
-        const opL = pass.opacity * backMult;
+        const opL = pass.opacity * backMult * op;
         const aL = Math.round(opL * 255).toString(16).padStart(2, '0');
         const leftX = sl.x;
         const gL = ctx.createLinearGradient(leftX - s, 0, leftX + s, 0);
-        gL.addColorStop(0, BG_COLOR + aL);
-        gL.addColorStop(0.4, BG_COLOR + aL);
+        gL.addColorStop(0, color + aL);
+        gL.addColorStop(0.4, color + aL);
         gL.addColorStop(1, 'transparent');
         ctx.fillStyle = gL;
         ctx.fillRect(0, 0, leftX + s, h);
@@ -133,12 +173,12 @@ export class FogEffect {
 
       // Right (front)
       if (drawRight) {
-        const aR = Math.round(pass.opacity * 255).toString(16).padStart(2, '0');
+        const aR = Math.round(pass.opacity * op * 255).toString(16).padStart(2, '0');
         const rightX = sr.x;
         const gR = ctx.createLinearGradient(rightX - s, 0, rightX + s, 0);
         gR.addColorStop(0, 'transparent');
-        gR.addColorStop(0.6, BG_COLOR + aR);
-        gR.addColorStop(1, BG_COLOR + aR);
+        gR.addColorStop(0.6, color + aR);
+        gR.addColorStop(1, color + aR);
         ctx.fillStyle = gR;
         ctx.fillRect(rightX - s, 0, w - rightX + s * 2, h);
       }
@@ -146,6 +186,8 @@ export class FogEffect {
 
     ctx.restore();
   }
+
+  // ── 2. Animated edge fog ────────────────────────
 
   /**
    * Animated fog wisps drifting near map edges.
@@ -161,6 +203,8 @@ export class FogEffect {
     time: number,
     side: FogSide = 'all',
   ): void {
+    if (this.wispOpacity < 0.001) return;
+
     // Map corners → screen space (with fog padding)
     const iTop = isoToScreen(0, 0);
     const iRight = isoToScreen(cols, 0);
@@ -196,15 +240,32 @@ export class FogEffect {
 
     const wispsPerEdge = Config.FOG_WISPS_PER_EDGE;
     const baseSize = Config.FOG_WISP_SIZE;
-    const maxOp = Config.FOG_WISP_OPACITY;
+    const maxOp = Config.FOG_WISP_OPACITY * this.wispOpacity;
     const backMult = Config.BOUNDARY_FOG_BACK_MULT;
     const driftSpd = Config.FOG_WISP_DRIFT_SPEED;
     const breathSpd = Config.FOG_WISP_BREATH_SPEED;
     const reach = Config.FOG_WISP_REACH;
     const backEdges = new Set([0, 3]);  // top-right, left-top
 
+    // Precompute wisp gradient colors from profile color
+    const baseR = this.wispR255;
+    const baseG = this.wispG255;
+    const baseB = this.wispB255;
+
+    // For additive mode: brighten from dark base → visible glow on dark bg
+    // For normal mode:   use the color directly as semi-transparent fog patches
+    const brightR = this.wispAdditive ? Math.min(255, baseR + 110) : baseR;
+    const brightG = this.wispAdditive ? Math.min(255, baseG + 130) : baseG;
+    const brightB = this.wispAdditive ? Math.min(255, baseB + 140) : baseB;
+    const midR    = this.wispAdditive ? Math.min(255, baseR + 70)  : Math.max(0, baseR - 15);
+    const midG    = this.wispAdditive ? Math.min(255, baseG + 90)  : Math.max(0, baseG - 15);
+    const midB    = this.wispAdditive ? Math.min(255, baseB + 100) : Math.max(0, baseB - 15);
+    const dimR    = this.wispAdditive ? Math.min(255, baseR + 35)  : Math.max(0, baseR - 30);
+    const dimG    = this.wispAdditive ? Math.min(255, baseG + 45)  : Math.max(0, baseG - 30);
+    const dimB    = this.wispAdditive ? Math.min(255, baseB + 55)  : Math.max(0, baseB - 30);
+
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';  // additive blend so wisps glow
+    ctx.globalCompositeOperation = this.wispAdditive ? 'lighter' : 'source-over';
 
     for (const ei of edgeIndices) {
       const e = allEdges[ei];
@@ -251,9 +312,9 @@ export class FogEffect {
         ctx.scale(1.6, 1);   // elongate along edge
 
         const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, sz);
-        grad.addColorStop(0,   `rgba(120,140,170,${opacity})`);
-        grad.addColorStop(0.4, `rgba(80,100,130,${opacity * 0.5})`);
-        grad.addColorStop(1,   'rgba(40,55,75,0)');
+        grad.addColorStop(0,   `rgba(${brightR},${brightG},${brightB},${opacity})`);
+        grad.addColorStop(0.4, `rgba(${midR},${midG},${midB},${opacity * 0.5})`);
+        grad.addColorStop(1,   `rgba(${dimR},${dimG},${dimB},0)`);
 
         ctx.fillStyle = grad;
         ctx.beginPath();

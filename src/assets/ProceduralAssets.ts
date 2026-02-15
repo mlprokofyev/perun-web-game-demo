@@ -459,33 +459,68 @@ function makeItemStickWorld(): HTMLCanvasElement {
   return c;
 }
 
-/** 24×24 inventory icon: white bone */
+/** 24×24 inventory icon: bone with 3D shading */
 function makeItemBone(): HTMLCanvasElement {
   const [c, ctx] = makeCanvas(24, 24);
-  ctx.fillStyle = '#E8E0D0';
-  // Bone shaft
   ctx.save();
   ctx.translate(12, 12);
   ctx.rotate(-Math.PI / 4);
+
+  // Dark outline / shadow pass
+  ctx.fillStyle = '#121814';
+  ctx.fillRect(-9, -2, 18, 5);
+  ctx.beginPath();
+  ctx.arc(-9, -2, 3.5, 0, Math.PI * 2);
+  ctx.arc(-9, 3, 3.5, 0, Math.PI * 2);
+  ctx.arc(9, -2, 3.5, 0, Math.PI * 2);
+  ctx.arc(9, 3, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Main bone body
+  ctx.fillStyle = '#A09A90';
   ctx.fillRect(-9, -2, 18, 4);
-  // Knobs at each end
   ctx.beginPath();
   ctx.arc(-9, -2, 3, 0, Math.PI * 2);
   ctx.arc(-9, 2, 3, 0, Math.PI * 2);
   ctx.arc(9, -2, 3, 0, Math.PI * 2);
   ctx.arc(9, 2, 3, 0, Math.PI * 2);
   ctx.fill();
+
+  // Top highlight
+  ctx.fillStyle = '#F5F0E8';
+  ctx.fillRect(-8, -2, 16, 2);
+  ctx.beginPath();
+  ctx.arc(-9, -2, 2, 0, Math.PI * 2);
+  ctx.arc(9, -2, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hot-spot specular
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(-3, -1, 6, 1);
+
   ctx.restore();
   return c;
 }
 
-/** 32×32 world sprite: bone */
+/** 32×32 world sprite: bone with 3D shading */
 function makeItemBoneWorld(): HTMLCanvasElement {
   const [c, ctx] = makeCanvas(32, 32);
-  ctx.fillStyle = '#E8E0D0';
   ctx.save();
   ctx.translate(16, 16);
   ctx.rotate(-Math.PI / 5);
+
+  // Dark outline / shadow pass
+  ctx.fillStyle = '#8B7D6B';
+  ctx.fillRect(-12, -2, 24, 6);
+  ctx.beginPath();
+  ctx.arc(-12, -2, 4.5, 0, Math.PI * 2);
+  ctx.arc(-12, 4, 4.5, 0, Math.PI * 2);
+  ctx.arc(12, -2, 4.5, 0, Math.PI * 2);
+  ctx.arc(12, 4, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Main bone body
+  ctx.fillStyle = '#D8CFC0';
   ctx.fillRect(-12, -2, 24, 5);
   ctx.beginPath();
   ctx.arc(-12, -2, 4, 0, Math.PI * 2);
@@ -493,6 +528,19 @@ function makeItemBoneWorld(): HTMLCanvasElement {
   ctx.arc(12, -2, 4, 0, Math.PI * 2);
   ctx.arc(12, 3, 4, 0, Math.PI * 2);
   ctx.fill();
+
+  // Top highlight
+  ctx.fillStyle = '#F5F0E8';
+  ctx.fillRect(-10, -2, 20, 2);
+  ctx.beginPath();
+  ctx.arc(-12, -2, 2.5, 0, Math.PI * 2);
+  ctx.arc(12, -2, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hot-spot specular
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(-4, -1, 8, 1);
+
   ctx.restore();
   return c;
 }

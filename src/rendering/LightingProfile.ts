@@ -41,6 +41,22 @@ export interface LightingProfile {
   volRimR: number;
   volRimG: number;
   volRimB: number;
+
+  // ── Snow ─────────────────────────────────────────
+  snowOpacity: number;       // 0 = invisible, 1 = full intensity
+
+  // ── Boundary vignette (static edge darkening) ───
+  vignetteOpacity: number;   // 0 = invisible, 1 = full
+  vignetteR: number;         // color (0-1 RGB)
+  vignetteG: number;
+  vignetteB: number;
+
+  // ── Animated edge fog (drifting wisps) ──────────
+  fogWispOpacity: number;    // 0 = invisible, 1 = full
+  fogWispR: number;          // wisp base color (0-1 RGB)
+  fogWispG: number;
+  fogWispB: number;
+  fogWispAdditive: boolean;  // true = 'lighter' (glow), false = 'source-over' (fog)
 }
 
 // ─── Presets ─────────────────────────────────────────────────────────
@@ -73,6 +89,19 @@ export const NIGHT_PROFILE: LightingProfile = {
   volRimR: 0.6,
   volRimG: 0.75,
   volRimB: 1.0,
+
+  snowOpacity: 1.0,
+
+  vignetteOpacity: 1.0,
+  vignetteR: 0.024,
+  vignetteG: 0.024,
+  vignetteB: 0.07,
+
+  fogWispOpacity: 1.0,
+  fogWispR: 0.024,
+  fogWispG: 0.024,
+  fogWispB: 0.07,
+  fogWispAdditive: true,   // glowing wisps at night
 };
 
 export const DAY_PROFILE: LightingProfile = {
@@ -103,6 +132,19 @@ export const DAY_PROFILE: LightingProfile = {
   volRimR: 0.95,
   volRimG: 0.95,
   volRimB: 1.0,
+
+  snowOpacity: 0.1,        // subtle snow in daylight
+
+  vignetteOpacity: 0.7,    // softer vignette in daylight
+  vignetteR: 0.278,        // #475F84
+  vignetteG: 0.373,
+  vignetteB: 0.518,
+
+  fogWispOpacity: 0.85,    // visible wisps in daylight
+  fogWispR: 0.851,         // #D9D9D9
+  fogWispG: 0.851,
+  fogWispB: 0.851,
+  fogWispAdditive: false,  // normal blend — no white blowout on bright sky
 };
 
 // ─── Utilities ───────────────────────────────────────────────────────
@@ -132,5 +174,15 @@ export function lerpProfile(a: LightingProfile, b: LightingProfile, t: number): 
     volRimR: m(a.volRimR, b.volRimR),
     volRimG: m(a.volRimG, b.volRimG),
     volRimB: m(a.volRimB, b.volRimB),
+    snowOpacity: m(a.snowOpacity, b.snowOpacity),
+    vignetteOpacity: m(a.vignetteOpacity, b.vignetteOpacity),
+    vignetteR: m(a.vignetteR, b.vignetteR),
+    vignetteG: m(a.vignetteG, b.vignetteG),
+    vignetteB: m(a.vignetteB, b.vignetteB),
+    fogWispOpacity: m(a.fogWispOpacity, b.fogWispOpacity),
+    fogWispR: m(a.fogWispR, b.fogWispR),
+    fogWispG: m(a.fogWispG, b.fogWispG),
+    fogWispB: m(a.fogWispB, b.fogWispB),
+    fogWispAdditive: t < 0.5 ? a.fogWispAdditive : b.fogWispAdditive,
   };
 }
