@@ -59,42 +59,152 @@
     }
     #quest-hud {
       position: absolute;
-      top: 12px;
-      right: 12px;
-      color: #d0c8a0;
+      top: 14px;
+      right: 14px;
       font-family: monospace;
-      font-size: 12px;
-      line-height: 1.6;
+      font-size: 13px;
+      line-height: 1.5;
       pointer-events: none;
-      text-shadow: 1px 1px 2px #000;
       text-align: right;
       z-index: 10;
-      max-width: 250px;
+      max-width: 280px;
+      background: rgba(6, 8, 16, 0.72);
+      border: 1px solid rgba(180, 170, 140, 0.18);
+      border-radius: 5px;
+      padding: 10px 14px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
     }
     .quest-hud-title {
-      color: #e8e0c0;
-      font-size: 12px;
-      margin-bottom: 2px;
+      color: #f0e8c8;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
     }
     .quest-hud-obj {
-      color: #a89868;
-      font-size: 11px;
+      color: #d0c8a0;
+      font-size: 12px;
       margin-left: 8px;
+      line-height: 1.7;
     }
     .quest-hud-obj.done {
-      color: #708060;
+      color: #8aa870;
+      text-decoration: line-through;
+      text-decoration-color: rgba(138, 168, 112, 0.4);
     }
     #controls-hint {
       position: absolute;
-      bottom: 12px;
-      right: 12px;
-      color: #666;
-      font-size: 11px;
-      line-height: 1.5;
+      bottom: 14px;
+      right: 14px;
+      display: flex;
+      gap: 12px;
+      color: rgba(160, 150, 120, 0.5);
+      font-size: 10px;
+      line-height: 1;
       pointer-events: none;
       text-shadow: 1px 1px 2px #000;
-      text-align: right;
       z-index: 10;
+    }
+    #controls-hint .hint-key {
+      display: inline-block;
+      background: rgba(180, 170, 140, 0.10);
+      border: 1px solid rgba(180, 170, 140, 0.20);
+      border-radius: 3px;
+      padding: 1px 4px;
+      margin-right: 3px;
+      font-size: 10px;
+      line-height: 1.5;
+      color: rgba(180, 170, 140, 0.55);
+    }
+
+    /* ── Controls help overlay ─────────────────────────── */
+    #controls-help-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      display: none;
+      justify-content: center;
+      pointer-events: auto;
+    }
+    .controls-help-box {
+      min-width: 300px;
+      max-width: 400px;
+      background: rgba(8, 10, 18, 0.94);
+      border: 2px solid rgba(180, 170, 140, 0.35);
+      border-radius: 6px;
+      padding: 18px 24px 14px;
+      font-family: monospace;
+      color: #d0c8a0;
+    }
+    .controls-help-title {
+      font-size: 13px;
+      color: #a89868;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+    .controls-help-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .controls-help-section {
+      font-size: 10px;
+      color: #706850;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 8px;
+      margin-bottom: 2px;
+      padding-bottom: 2px;
+      border-bottom: 1px solid rgba(180, 170, 140, 0.10);
+    }
+    .controls-help-section:first-child {
+      margin-top: 0;
+    }
+    .controls-help-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #b0a880;
+      padding: 2px 0;
+    }
+    .controls-help-row .key {
+      display: inline-block;
+      background: rgba(180, 170, 140, 0.15);
+      border: 1px solid rgba(180, 170, 140, 0.4);
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #d0c8a0;
+      min-width: 24px;
+      text-align: center;
+    }
+    .controls-help-desc {
+      color: #c0b890;
+      flex: 1;
+    }
+    .controls-help-hint {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(180, 170, 140, 0.15);
+      font-size: 11px;
+      color: #706850;
+      text-align: center;
+    }
+    .controls-help-hint .key {
+      display: inline-block;
+      background: rgba(180, 170, 140, 0.15);
+      border: 1px solid rgba(180, 170, 140, 0.4);
+      border-radius: 3px;
+      padding: 0 5px;
+      margin-right: 3px;
+      font-size: 10px;
+      line-height: 1.6;
     }
 
     /* ── Interactable marker (pixel-art ▼ above NPC) ── */
@@ -492,15 +602,9 @@
     <div id="hud"></div>
     <div id="debug-overlay"></div>
     <div id="controls-hint">
-      WASD / Arrows — move<br>
-      Mouse wheel — zoom<br>
-      Shift — run<br>
-      E — interact<br>
-      I — inventory<br>
-      J — quest log<br>
-      L — toggle lighting<br>
-      N — toggle snow<br>
-      T — toggle day/night
+      <span><span class="hint-key">H</span> controls</span>
+      <span><span class="hint-key">U</span> debug</span>
+      <span><span class="hint-key">Q</span> quests</span>
     </div>
 
     <!-- Interact prompt (shown when near an NPC) -->
