@@ -1,7 +1,6 @@
 import type { Player } from '../entities/Player';
 import type { Camera } from '../rendering/Camera';
 import type { TileMap } from '../world/TileMap';
-import { screenToIso } from '../rendering/IsometricUtils';
 import { questTracker } from '../quests/QuestTracker';
 import { getQuestDef } from '../quests/QuestDef';
 import { inventory } from '../items/Inventory';
@@ -15,9 +14,16 @@ export class HUD {
   private frameCount: number = 0;
   private fpsTimer: number = 0;
 
+  private _debugVisible = false;
+  private _questHudVisible = true;
+
   constructor() {
     this.hudEl = document.getElementById('hud')!;
     this.debugEl = document.getElementById('debug-overlay')!;
+
+    // Hide debug panels by default
+    this.hudEl.style.display = 'none';
+    this.debugEl.style.display = 'none';
 
     // Create quest tracker HUD element
     let qh = document.getElementById('quest-hud');
@@ -27,6 +33,23 @@ export class HUD {
       document.getElementById('game-container')!.appendChild(qh);
     }
     this.questHudEl = qh;
+  }
+
+  get debugVisible(): boolean { return this._debugVisible; }
+  setDebugVisible(v: boolean): void {
+    this._debugVisible = v;
+    if (!v) {
+      this.hudEl.style.display = 'none';
+      this.debugEl.style.display = 'none';
+    }
+  }
+
+  get questHudVisible(): boolean { return this._questHudVisible; }
+  setQuestHudVisible(v: boolean): void {
+    this._questHudVisible = v;
+    if (!v) {
+      this.questHudEl.style.display = 'none';
+    }
   }
 
   update(dt: number, player: Player, camera: Camera, tileMap: TileMap): void {
@@ -39,31 +62,38 @@ export class HUD {
       this.fpsTimer -= 1;
     }
 
-    const t = player.transform;
-    const dir = player.animController.getDirection();
+    // Debug panels
+    if (this._debugVisible) {
+      const t = player.transform;
+      const dir = player.animController.getDirection();
+      const itemCount = inventory.getSlots().length;
+      const invStr = itemCount > 0 ? `Items: ${itemCount}` : '';
 
-    // Inventory count in HUD
-    const itemCount = inventory.getSlots().length;
-    const invStr = itemCount > 0 ? `Items: ${itemCount}` : '';
+      this.hudEl.style.display = '';
+      this.hudEl.innerHTML = `
+        Pos: ${t.x.toFixed(1)}, ${t.y.toFixed(1)}<br>
+        Dir: ${dir}${invStr ? '<br>' + invStr : ''}
+      `;
 
-    this.hudEl.innerHTML = `
-      Perun Pixel World<br>
-      Pos: ${t.x.toFixed(1)}, ${t.y.toFixed(1)}<br>
-      Dir: ${dir}${invStr ? '<br>' + invStr : ''}
-    `;
-
-    this.debugEl.innerHTML = `
-      FPS: ${this.fps}<br>
-      Zoom: ${camera.zoom.toFixed(1)}x<br>
-      Map: ${tileMap.cols}×${tileMap.rows}<br>
-      Objects: ${tileMap.objects.length}
-    `;
+      this.debugEl.style.display = '';
+      this.debugEl.innerHTML = `
+        FPS: ${this.fps}<br>
+        Zoom: ${camera.zoom.toFixed(1)}x<br>
+        Map: ${tileMap.cols}×${tileMap.rows}<br>
+        Objects: ${tileMap.objects.length}
+      `;
+    }
 
     // Active quest objective tracker
     this.updateQuestHud();
   }
 
   private updateQuestHud(): void {
+    if (!this._questHudVisible) {
+      this.questHudEl.style.display = 'none';
+      return;
+    }
+
     const active = questTracker.getActiveQuests();
     if (active.length === 0) {
       this.questHudEl.style.display = 'none';

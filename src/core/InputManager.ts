@@ -2,19 +2,22 @@ import { InputSystem } from '../systems/InputSystem';
 
 /** Named game actions — decouple game logic from raw keycodes. */
 export enum Action {
-  MOVE_UP      = 'MOVE_UP',
-  MOVE_DOWN    = 'MOVE_DOWN',
-  MOVE_LEFT    = 'MOVE_LEFT',
-  MOVE_RIGHT   = 'MOVE_RIGHT',
-  RUN          = 'RUN',
-  INTERACT     = 'INTERACT',
-  TOGGLE_LIGHT = 'TOGGLE_LIGHT',
-  TOGGLE_SNOW  = 'TOGGLE_SNOW',
-  TOGGLE_TIME  = 'TOGGLE_TIME',
-  INVENTORY    = 'INVENTORY',
-  QUEST_LOG    = 'QUEST_LOG',
-  DEBUG_GRID   = 'DEBUG_GRID',
-  PAUSE        = 'PAUSE',
+  MOVE_UP         = 'MOVE_UP',
+  MOVE_DOWN       = 'MOVE_DOWN',
+  MOVE_LEFT       = 'MOVE_LEFT',
+  MOVE_RIGHT      = 'MOVE_RIGHT',
+  RUN             = 'RUN',
+  INTERACT        = 'INTERACT',
+  TOGGLE_LIGHT    = 'TOGGLE_LIGHT',
+  TOGGLE_SNOW     = 'TOGGLE_SNOW',
+  TOGGLE_TIME     = 'TOGGLE_TIME',
+  INVENTORY       = 'INVENTORY',
+  QUEST_LOG       = 'QUEST_LOG',
+  DEBUG_GRID      = 'DEBUG_GRID',
+  PAUSE           = 'PAUSE',
+  CONTROLS_HELP   = 'CONTROLS_HELP',
+  TOGGLE_DEBUG    = 'TOGGLE_DEBUG',
+  TOGGLE_QUEST_HUD = 'TOGGLE_QUEST_HUD',
 }
 
 /** A binding maps an Action to one or more keyboard codes. */
@@ -33,8 +36,11 @@ export const DEFAULT_BINDINGS: KeyBindings = {
   [Action.TOGGLE_TIME]:  ['KeyT'],
   [Action.INVENTORY]:    ['KeyI'],
   [Action.QUEST_LOG]:    ['KeyJ'],
-  [Action.DEBUG_GRID]:   ['KeyG'],
-  [Action.PAUSE]:        ['Escape'],
+  [Action.DEBUG_GRID]:      ['KeyG'],
+  [Action.PAUSE]:           ['Escape'],
+  [Action.CONTROLS_HELP]:   ['KeyH'],
+  [Action.TOGGLE_DEBUG]:    ['KeyU'],
+  [Action.TOGGLE_QUEST_HUD]: ['KeyQ'],
 };
 
 /**

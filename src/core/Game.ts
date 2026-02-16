@@ -17,6 +17,7 @@ import { HUD } from '../ui/HUD';
 import { DialogUI } from '../ui/DialogUI';
 import { InventoryUI } from '../ui/InventoryUI';
 import { QuestLogUI } from '../ui/QuestLogUI';
+import { ControlsHelpUI } from '../ui/ControlsHelpUI';
 import { DialogState } from '../states/DialogState';
 import { InventoryState } from '../states/InventoryState';
 import { QuestLogState } from '../states/QuestLogState';
@@ -77,6 +78,7 @@ export class Game {
   private dialogUI: DialogUI;
   private inventoryUI: InventoryUI;
   private questLogUI: QuestLogUI;
+  private controlsHelpUI: ControlsHelpUI;
   private itemPreviewUI: ItemPreviewUI;
   private interactPrompt: HTMLElement;
 
@@ -117,6 +119,7 @@ export class Game {
     this.dialogUI = new DialogUI();
     this.inventoryUI = new InventoryUI();
     this.questLogUI = new QuestLogUI();
+    this.controlsHelpUI = new ControlsHelpUI();
     this.itemPreviewUI = new ItemPreviewUI();
     this.interactPrompt = document.getElementById('interact-prompt')!;
 
@@ -839,6 +842,12 @@ export class Game {
   private inventoryTogglePrev = false;
   /** Track J-key toggle for quest log */
   private questLogTogglePrev = false;
+  /** Track H-key toggle for controls help */
+  private controlsHelpTogglePrev = false;
+  /** Track F3-key toggle for debug info */
+  private debugTogglePrev = false;
+  /** Track Q-key toggle for quest HUD */
+  private questHudTogglePrev = false;
 
   /** Day/night lighting profile system */
   private timeTogglePrev = false;
@@ -945,7 +954,8 @@ export class Game {
       if (this.inventoryUI.visible) {
         this.inventoryUI.hide();
       } else {
-        this.questLogUI.hide(); // close quest log if open
+        this.questLogUI.hide();
+        this.controlsHelpUI.hide();
         this.inventoryUI.show();
       }
     }
@@ -958,10 +968,43 @@ export class Game {
         this.questLogUI.hide();
       } else {
         this.inventoryUI.hide(); // close inventory if open
+        this.controlsHelpUI.hide();
         this.questLogUI.show();
       }
     }
     this.questLogTogglePrev = jDown;
+
+    // Toggle controls help (edge-triggered); ESC also closes it
+    const hDown = this.inputManager.isActionDown(Action.CONTROLS_HELP);
+    if (hDown && !this.controlsHelpTogglePrev) {
+      if (this.controlsHelpUI.visible) {
+        this.controlsHelpUI.hide();
+      } else {
+        this.inventoryUI.hide();
+        this.questLogUI.hide();
+        this.controlsHelpUI.show();
+      }
+    }
+    this.controlsHelpTogglePrev = hDown;
+
+    const escDown = this.inputManager.isActionDown(Action.PAUSE);
+    if (escDown && this.controlsHelpUI.visible) {
+      this.controlsHelpUI.hide();
+    }
+
+    // Toggle debug info (edge-triggered)
+    const uDown = this.inputManager.isActionDown(Action.TOGGLE_DEBUG);
+    if (uDown && !this.debugTogglePrev) {
+      this.hud.setDebugVisible(!this.hud.debugVisible);
+    }
+    this.debugTogglePrev = uDown;
+
+    // Toggle quest HUD (edge-triggered)
+    const qDown = this.inputManager.isActionDown(Action.TOGGLE_QUEST_HUD);
+    if (qDown && !this.questHudTogglePrev) {
+      this.hud.setQuestHudVisible(!this.hud.questHudVisible);
+    }
+    this.questHudTogglePrev = qDown;
 
     // Toggle day/night (edge-triggered, smooth transition)
     const tDown = this.inputManager.isActionDown(Action.TOGGLE_TIME);
