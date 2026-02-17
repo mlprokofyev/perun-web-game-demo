@@ -320,8 +320,8 @@ export class Game {
   private spawnCollectibles(): void {
     // Sticks are now obtained from stick pile interactables (press E), not auto-pickup
     const collectibles: { id: string; itemId: string; col: number; row: number; assetId: string; srcW: number; srcH: number; drawH: number; pickupRadius?: number }[] = [
-      { id: 'collect_bone_1', itemId: 'bone', col: 4.4, row: 4.1, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24, pickupRadius: 0.25 },
-      { id: 'collect_bone_2', itemId: 'bone', col: 1.2, row: 4.4, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24, pickupRadius: 0.25 },
+      { id: 'collect_bone_1', itemId: 'bone', col: 4.4, row: 4.1, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24, pickupRadius: 0.4 },
+      { id: 'collect_bone_2', itemId: 'bone', col: 1.2, row: 4.4, assetId: 'item_bone_world', srcW: 32, srcH: 32, drawH: 24, pickupRadius: 0.4 },
       { id: 'collect_stone_1', itemId: 'stone', col: 5.0, row: 2.0, assetId: 'item_stone_world', srcW: 32, srcH: 32, drawH: 20 },
     ];
 
@@ -558,7 +558,7 @@ export class Game {
     const ember = new Collectible('secret_ancient_ember', {
       col: Config.CAMPFIRE_COL,
       row: Config.CAMPFIRE_ROW,
-      pickupRadius: 0.25,
+      pickupRadius: 0.33,
       itemId: 'ancient_ember',
       assetId: 'item_ancient_ember_world',
       srcW: 32,
@@ -1094,8 +1094,14 @@ export class Game {
     this.controlsHelpTogglePrev = hDown;
 
     const escDown = this.inputManager.isActionDown(Action.PAUSE);
-    if (escDown && this.controlsHelpUI.visible) {
-      this.controlsHelpUI.hide();
+    if (escDown) {
+      if (this.inventoryUI.visible) {
+        this.inventoryUI.hide();
+      } else if (this.questLogUI.visible) {
+        this.questLogUI.hide();
+      } else if (this.controlsHelpUI.visible) {
+        this.controlsHelpUI.hide();
+      }
     }
 
     // Toggle debug info (edge-triggered)

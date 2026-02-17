@@ -2,7 +2,7 @@
 
 > Completed work, remaining tasks, and priority matrix.
 >
-> Last updated: 2026-02-16
+> Last updated: 2026-02-17
 
 ---
 
@@ -38,10 +38,11 @@
 | Entity-vs-entity collision | PhysicsSystem: solid check, non-solid passthrough, overlap escape |
 | Entity opacity / fade-in | Renderer globalAlpha based on entity.opacity |
 | Blob shadows for all entities | Per-entity blobShadow config { rx, ry, opacity } |
-| Interactable marker | Pixel-art SVG arrow as DOM overlay, zoom-aware scaling + bob animation |
+| Interactable marker | Dedicated canvas overlay above WebGL post-process layer. Procedural pixel-art arrow, zoom-aware scaling + bob animation. Player occlusion via `destination-out` compositing. Unaffected by lighting/shadows. |
 | Dialog UI controls | Arrow/Enter/ESC navigation, mouse support, controls hint bar |
 | Dog NPC (proof of concept) | Walk-to behavior with re-aim steering, 6-node branching dialog tree with quest integration |
 | Animation stop-frame fix | Player snaps to frame 0 (neutral stance) on movement stop instead of freezing mid-stride |
+| Interactable marker improvements | Canvas-rendered markers visible above static objects, occluded by player. `[E]` badge with pulse animation drawn alongside arrow. Separate `NPC_ONBOARD_RADIUS` for badge visibility. |
 
 ### Phase 2b: Environment & Atmosphere
 
@@ -63,8 +64,19 @@
 | Soft fire fade on mode change | fireOpacity/pointLightOpacity as continuous floats |
 | Dynamic background color | Renderer.setBackgroundColor() driven by profile |
 | Volumetric rim color per profile | Night: cool blue, Day: neutral white |
+| Dynamic fog/vignette profiles | Vignette and fog wisps decoupled — independent color, opacity, blend mode per lighting profile. Night: dark additive glow. Day: blue-grey framing + white fog patches. |
+| Profile-driven snow opacity | Snow particle alpha driven by `snowOpacity` in profile (night=full, day=subtle 0.1) |
 
-### Phase 3: Items & Quests
+### Phase 3a: HUD & UI Polish
+
+| Task | Notes |
+|------|-------|
+| Controls help overlay | `ControlsHelpUI.ts` — HTML overlay listing all controls by category. Toggle with `H` key. |
+| Debug panel toggle | Debug info and FPS/zoom panels hidden by default. Toggle with `U` key (edge-triggered). |
+| Quest HUD toggle | Quest objective tracker togglable with `Q` key. Visible by default. |
+| Sub-path deployment | Vite `base` config for `/doors/1/` sub-path. `AssetManifest` uses `import.meta.env.BASE_URL` for all asset paths. |
+
+### Phase 3b: Items & Quests
 
 | Task | Notes |
 |------|-------|
@@ -88,6 +100,10 @@
 | **Secret item emergence** | Ancient Ember: launches from campfire in parabolic arc to random nearby position. Pulsing glow during flight. |
 | **Item preview dialog** | `ItemPreviewState` + `ItemPreviewUI`: centered overlay with item icon (64×64 upscaled), name, description. Triggers on pickup of non-stackable items. Enter/Space/ESC to dismiss. |
 | **Pending events system** | Timer-based callback queue in Game.ts. Used for delayed secret item spawn after fire burst. |
+| **Dog quest fix** | Changed "give bone" objective from `talk`/required:2 to `flag`/`dog_fed`/required:1. Fixed counter display and missing dialog option. Retroactive talk credit on quest accept. |
+| **Bone consumption fix** | Giving bone to dog now removes all bones from inventory (`inventory.remove('bone', inventory.count('bone'))`). |
+| **ESC closes all modals** | Inventory (I) and Quest Log (J) panels now dismissible with ESC, matching Dialog and Item Preview behavior. Hint text updated in UI. |
+| **Dog spawn delay** | Dog NPC spawns after `DOG_SPAWN_DELAY` (2s) via pending events, not immediately. |
 
 ---
 
@@ -146,6 +162,16 @@
 | **P1** | Secret item + launch animation | 0.5 day | Done |
 | **P1** | Item preview dialog | 0.5 day | Done |
 | **P1** | Animation stop-frame fix | — | Done |
+| **P1** | Interactable marker improvements | — | Done |
+| **P1** | Dynamic fog/vignette profiles | 0.5 day | Done |
+| **P1** | Profile-driven snow opacity | — | Done |
+| **P1** | Controls help overlay (H) | 0.5 day | Done |
+| **P1** | Debug/quest HUD toggles (U, Q) | 0.5 day | Done |
+| **P1** | Sub-path deployment (/doors/1/) | 0.5 day | Done |
+| **P1** | Dog quest fix (flag-based objective) | — | Done |
+| **P1** | Bone consumption fix | — | Done |
+| **P1** | ESC closes all modals | — | Done |
+| **P1** | Dog spawn delay | — | Done |
 | **P2** | Data-driven maps (JSON) | 2 days | — |
 | **P2** | Scene/Map transitions | 1 day | — |
 | **P2** | Generalize volumetric rendering | 2 days | — |
@@ -165,51 +191,53 @@
 
 | File | Lines | Notes |
 |------|-------|-------|
-| core/Game.ts | ~1189 | Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events. NPC shadow hardcoded to dog constants. |
+| core/Game.ts | ~1349 | Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events, profile-driven effects, controls help, debug/quest toggles, ESC-close for all modals, marker canvas overlay with player occlusion. NPC shadow hardcoded to dog constants. |
 | core/GameState.ts | ~107 | State stack with transparent/blocking flags |
 | core/EntityManager.ts | ~71 | Central registry with spatial queries |
 | core/EventBus.ts | ~78 | Fully typed. Quest, inventory, collectible events active. |
-| core/InputManager.ts | ~90 | Action mapping with INVENTORY (I), QUEST_LOG (J) |
-| core/Config.ts | ~166 | All constants centralized. Campfire + dog params |
+| core/InputManager.ts | ~96 | Action mapping with INVENTORY (I), QUEST_LOG (J), CONTROLS_HELP (H), TOGGLE_DEBUG (U), TOGGLE_QUEST_HUD (Q) |
+| core/Config.ts | ~168 | All constants centralized. Campfire + dog params, NPC onboard radius, dog spawn delay |
 | core/GameFlags.ts | ~90 | Persistent game state singleton (booleans, counters, strings) |
-| core/AssetManifest.ts | ~22 | JSON manifest loader |
+| core/AssetManifest.ts | ~26 | JSON manifest loader. BASE_URL-aware for sub-path deployment. |
+| core/AssetLoader.ts | ~56 | Image loader/cache |
 | core/Types.ts | ~21 | Direction union type |
 | entities/Entity.ts | ~47 | Optional components, opacity, blobShadow, interactable + interactLabel |
-| entities/Player.ts | ~48 | Explicit component init |
+| entities/Player.ts | ~61 | Explicit component init |
 | entities/NPC.ts | ~144 | Walk-to with re-aim steering, fade-in, state machine, overshoot guard |
 | entities/Campfire.ts | ~130 | Spark particles, collider, animated fire, burst() for dramatic effects |
 | entities/Collectible.ts | ~188 | IDLE/PICKING_UP/LAUNCHING/DONE states, parabolic arc launch |
 | entities/InteractableObject.ts | ~51 | Generic invisible interactable for static objects |
 | entities/TriggerZone.ts | ~101 | Invisible trigger with enter/exit events |
-| entities/AnimationController.ts | ~122 | Typed Direction, stop-on-frame-0, idle timeout |
+| entities/AnimationController.ts | ~121 | Typed Direction, stop-on-frame-0, idle timeout |
 | entities/Components.ts | ~27 | Transform, Velocity, Collider |
 | items/ItemDef.ts | ~75 | Item type + registry. 4 built-in items (stick, bone, stone, ancient_ember) |
 | items/Inventory.ts | ~137 | Add/remove/has/count, source tracking, EventBus integration |
 | quests/QuestDef.ts | ~79 | Quest + objective data model, registry. 2 quests defined. |
 | quests/QuestTracker.ts | ~208 | Runtime quest state, event listeners, checkFlags() |
-| dialog/DialogData.ts | ~148 | Data model + registry + quest-integrated dog dialog (condition/onSelect) |
+| dialog/DialogData.ts | ~152 | Data model + registry + quest-integrated dog dialog (condition/onSelect, bone consumption, retroactive talk credit) |
 | states/DialogState.ts | ~107 | Transparent, blocks update. Filters choices by condition. |
 | states/InventoryState.ts | ~29 | Transparent overlay for inventory |
 | states/QuestLogState.ts | ~29 | Transparent overlay for quest log |
 | states/ItemPreviewState.ts | ~43 | Transparent overlay for item discovery dialog |
 | ui/DialogUI.ts | ~127 | Arrow/Enter/ESC navigation, mouse, hints |
-| ui/HUD.ts | ~93 | Player info + quest tracker HUD |
-| ui/InventoryUI.ts | ~101 | HTML overlay: item icons, names, counts |
-| ui/QuestLogUI.ts | ~113 | HTML overlay: active/completed quests + objectives |
+| ui/ControlsHelpUI.ts | ~53 | HTML overlay listing all controls by category. Toggle with H key. |
+| ui/HUD.ts | ~123 | Debug panels (toggleable with U), quest HUD tracker (toggleable with Q) |
+| ui/InventoryUI.ts | ~102 | HTML overlay: item icons, names, counts |
+| ui/QuestLogUI.ts | ~114 | HTML overlay: active/completed quests + objectives |
 | ui/ItemPreviewUI.ts | ~86 | HTML overlay: item discovery preview (icon + name + description) |
 | systems/PhysicsSystem.ts | ~92 | Entity-vs-entity collision, overlap escape |
-| systems/AnimationSystem.ts | ~17 | Null-checks optional animController |
+| systems/AnimationSystem.ts | ~20 | Null-checks optional animController |
 | systems/InputSystem.ts | ~58 | Raw key state |
-| rendering/Renderer.ts | ~305 | Z-sort, rotation, dynamic bg color |
-| rendering/PostProcessPipeline.ts | ~751 | Lighting, shadows, iso projection, volumetric |
-| rendering/LightingProfile.ts | ~137 | Day/night presets, lerpProfile() |
-| rendering/effects/FireLightEffect.ts | ~144 | Breath + wobble + crackle flicker |
-| rendering/effects/SnowfallEffect.ts | ~174 | Extracted from Renderer |
-| rendering/effects/FogEffect.ts | ~268 | Boundary + animated wisps |
+| rendering/Renderer.ts | ~341 | Z-sort, rotation, dynamic bg color, profile-driven effects dispatch |
+| rendering/PostProcessPipeline.ts | ~750 | Lighting, shadows, iso projection, volumetric |
+| rendering/LightingProfile.ts | ~188 | Day/night presets + fog/vignette/snow profiles, lerpProfile() |
+| rendering/effects/FireLightEffect.ts | ~143 | Breath + wobble + crackle flicker |
+| rendering/effects/SnowfallEffect.ts | ~179 | Extracted from Renderer, profile-driven opacity |
+| rendering/effects/FogEffect.ts | ~329 | Decoupled vignette + animated wisps, profile-driven color/opacity/blend |
 | rendering/Camera.ts | ~66 | Unchanged |
 | rendering/IsometricUtils.ts | ~30 | Unchanged |
 | world/TileMap.ts | ~114 | WorldObject with rotation, groundLayer, shadowHeight, removeObjectById |
 | world/WorldGenerator.ts | ~87 | Campfire, sticks, trees (med_snow, big_1, pine_snow), house. Hardcoded positions. |
-| assets/ProceduralAssets.ts | ~661 | Campfire anim + item icons + world sprites (stick, bone, stone, ancient_ember) |
+| assets/ProceduralAssets.ts | ~740 | Campfire anim + item icons + world sprites (stick, bone, stone, ancient_ember) + interact_marker sprite |
 | main.ts | ~43 | Loads from manifest |
-| index.html | ~538 | Dialog, inventory, quest log, item preview overlays. Controls hints. |
+| index.html | ~652 | Dialog, inventory, quest log, item preview, controls help overlays. Styled HUD + debug panels. DOM marker styles removed (now canvas-rendered). |

@@ -53,7 +53,8 @@
 │  UI Layer                                                       │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
 │  │  DialogUI  │  │ InventoryUI│  │  QuestLogUI /            │ │
-│  │            │  │            │  │  ItemPreviewUI / HUD     │ │
+│  │            │  │            │  │  ItemPreviewUI / HUD /   │ │
+│  │            │  │            │  │  ControlsHelpUI          │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -93,7 +94,9 @@ User Input → InputSystem → InputManager (action mapping)
                                 ↓
                           PostProcessPipeline.render() (WebGL2 lighting)
                                 ↓
-                          DOM overlays (dialog, inventory, quest log, item preview, markers, HUD)
+                          Marker canvas overlay (above post-process, below DOM)
+                                ↓
+                          DOM overlays (dialog, inventory, quest log, item preview, HUD)
 ```
 
 ---
@@ -299,8 +302,8 @@ interface QuestDef {
 
 interface QuestObjective {
   description: string;
-  type: 'collect' | 'flag';
-  target: string;             // item id (collect) or flag key (flag)
+  type: 'collect' | 'talk' | 'flag';
+  target: string;             // item id (collect), dialog id (talk), or flag key (flag)
   required: number;
 }
 ```
@@ -321,7 +324,8 @@ Runtime manager for quest state. Listens to EventBus events and auto-advances ob
 Event listeners:
 - `collectible:pickup` → advances 'collect' objectives
 - `inventory:changed` → re-checks 'collect' objectives
-- Internal `checkFlagObjectives()` → advances 'flag' objectives
+- `dialog:open` → advances 'talk' objectives
+- `dialog:choice` → re-evaluates 'flag' objectives via `checkFlagObjectives()`
 
 Emits: `quest:started`, `quest:completed`, `quest:objective_completed`, `quest:objective_progress`.
 
@@ -389,9 +393,12 @@ Two layers:
 | `TOGGLE_SNOW` | `N` | Toggle snowfall |
 | `TOGGLE_TIME` | `T` | Toggle day/night mode |
 | `DEBUG_GRID` | `G` | Show debug grid |
-| `PAUSE` | `Escape` | Pause / close dialog |
+| `PAUSE` | `Escape` | Close any open overlay (dialog, inventory, quest log, controls help) |
 | `INVENTORY` | `I` | Toggle inventory overlay |
 | `QUEST_LOG` | `J` | Toggle quest log overlay |
+| `CONTROLS_HELP` | `H` | Toggle controls help overlay |
+| `TOGGLE_DEBUG` | `U` | Toggle debug info panels |
+| `TOGGLE_QUEST_HUD` | `Q` | Toggle quest HUD tracker |
 
 Bindings can be changed at runtime via `inputManager.rebind(Action, codes[])`.
 
@@ -422,7 +429,8 @@ SPAWN (transparent, non-solid)
   → fade in over fadeDuration seconds
   → walk toward (targetCol, targetRow) with re-aim steering each frame
   → ARRIVE: snap to target (overshoot guard), solid=true, interactable=true
-  → idle animation + floating interact marker (SVG arrow)
+  → idle animation + floating interact marker (canvas-rendered pixel-art arrow)
+  → player approaches within NPC_ONBOARD_RADIUS → [E] badge appears
   → player approaches within NPC_INTERACT_RADIUS → "Press E to talk"
   → player presses E → DialogState pushed
   → dialog completes / ESC → DialogState popped → PLAYING
@@ -512,6 +520,20 @@ Dialogs are registered at import time via `registerDialog(tree)` and looked up b
 | `ESC` | Close dialog at any time |
 | Mouse hover + click | Also supported |
 
+### ESC Close Behavior (All Modals)
+
+All overlay panels are dismissible with `ESC`:
+
+| Modal | ESC Handler |
+|-------|-------------|
+| Dialog | `DialogUI` keydown listener (immediate, with `stopPropagation`) |
+| Item Preview | `ItemPreviewUI` keydown listener (delayed 1 frame to avoid pickup key collision) |
+| Inventory | `Game._update()` — `Action.PAUSE` check |
+| Quest Log | `Game._update()` — `Action.PAUSE` check |
+| Controls Help | `Game._update()` — `Action.PAUSE` check |
+
+Priority when multiple panels are open: Inventory > Quest Log > Controls Help (checked in that order in `_update()`).
+
 ---
 
 ## Item Preview Dialog
@@ -524,12 +546,65 @@ Dialogs are registered at import time via `registerDialog(tree)` and looked up b
 
 ---
 
+## Interaction Markers
+
+Interaction markers (pixel-art arrow + `[E]` badge) are rendered on a dedicated `markerCanvas` — a third canvas layer that sits between the WebGL post-process canvas and DOM UI overlays.
+
+### Canvas Stack (bottom to top)
+
+| Layer | z-index | Content |
+|-------|---------|---------|
+| Main Canvas (2D) | 0 | Game world: tiles, objects, entities |
+| WebGL Canvas | 1 | Post-processing: lighting, shadows, volumetric |
+| Marker Canvas | 2 | Interaction markers (arrow + `[E]` badge) |
+| DOM Overlays | 10+ | Dialog, inventory, quest log, HUD |
+
+### Why a Separate Canvas?
+
+- **Above post-processing**: Markers remain at full brightness regardless of lighting/shadow state.
+- **Above static objects**: Markers float above trees and other world objects to stay visible.
+- **Below player** (when appropriate): Player occlusion is achieved via `globalCompositeOperation = 'destination-out'` — the player's sprite is drawn on the marker canvas to erase marker pixels where the player should appear in front (based on depth comparison).
+- **Below DOM UI**: Markers don't obscure dialog, inventory, or other UI panels.
+
+### Visibility Rules
+
+- Markers are hidden when any modal state is active (`stateManager.size > 1`).
+- The `[E]` badge only appears when the entity is the nearest interactable within `NPC_ONBOARD_RADIUS`.
+- The arrow marker appears for all interactable entities within render distance.
+
+---
+
+## Controls Help Overlay
+
+`src/ui/ControlsHelpUI.ts` — an HTML overlay listing all game controls, organized by category (Movement, Interaction, Environment, Debug).
+
+- **Toggle**: `H` key (edge-triggered via `CONTROLS_HELP` action). Also dismissible with `ESC`.
+- **Display**: Centered overlay with categorized control listing, keyboard key badges, and descriptions.
+- **State**: Not a game state — it's a simple DOM visibility toggle managed in `Game._update()`. Same for Inventory (`I` key) and Quest Log (`J` key).
+
+---
+
+## HUD & Debug Panels
+
+`src/ui/HUD.ts` — manages three UI elements:
+
+| Panel | Default | Toggle | Content |
+|-------|---------|--------|---------|
+| **Debug info** (top-left) | Hidden | `U` key | Player position, direction, item count |
+| **Debug overlay** (top-right) | Hidden | `U` key | FPS, zoom, map size, object count |
+| **Quest HUD** (top-right) | Visible | `Q` key | Active quest objectives with progress |
+
+Debug panels (`U`) and quest HUD (`Q`) are independently togglable. Both are edge-triggered in `Game._render()`.
+
+---
+
 ## Pending Events System
 
 A simple timer-based callback queue in `Game.ts`. Events are pushed with a `timer` (seconds) and a `callback`. Each frame, timers decrement; when expired, the callback fires and the event is removed.
 
 Used for:
 - Delayed secret item spawn after campfire fire burst (1.5s delay)
+- Dog NPC spawn delay (`DOG_SPAWN_DELAY` = 2s)
 
 ---
 
@@ -538,11 +613,15 @@ Used for:
 Boot sequence in `src/main.ts`:
 
 1. Generate procedural fallback assets (canvas-drawn placeholders + item icons + world sprites)
-2. Load asset manifest from `public/assets/data/assets.json`
+2. Load asset manifest from `public/assets/data/assets.json` (paths resolved relative to `import.meta.env.BASE_URL`)
 3. Load all PNGs listed in manifest — on success they override procedural versions
 4. Generate world and start the game loop
 
 The game runs even if PNG files are missing (falls back to procedural).
+
+### Sub-Path Deployment
+
+The game supports deployment under a sub-path (e.g., `/doors/1/`) via Vite's `base` config. Asset paths in `AssetManifest.ts` are prepended with `import.meta.env.BASE_URL` at runtime, so the same code works both at the root and under sub-paths.
 
 ### Asset Manifest Format
 
@@ -588,17 +667,18 @@ All tunable constants are centralized in `src/core/Config.ts` as a single `const
 - Snowfall (particle count, speed, wind, layers)
 - Dog NPC (sprite dimensions, speed, spawn/target position, fade duration)
 - Campfire (position, draw height, light color/radius/intensity, shadow radius)
-- Interaction (NPC interact radius)
+- Interaction (NPC interact radius, NPC onboard radius for `[E]` badge)
+- Dog spawn delay
 
 ### Lighting Profiles
 
 Runtime lighting state is managed by `LightingProfile` objects (`src/rendering/LightingProfile.ts`), not raw `Config` values. Two presets are defined:
 
-| Profile | Ambient | Background | Shadows | Point Lights | Fire |
-|---------|---------|------------|---------|--------------|------|
-| `NIGHT_PROFILE` | Dark blue (0.18, 0.22, 0.38) | Deep navy | Long, full opacity | On | On |
-| `DAY_PROFILE` | Bright neutral (0.95, 0.95, 0.95) | Sky blue | Short, faint (0.25 opacity) | Off | Off |
+| Profile | Ambient | Background | Shadows | Point Lights | Fire | Snow | Vignette | Fog Wisps |
+|---------|---------|------------|---------|--------------|------|------|----------|-----------|
+| `NIGHT_PROFILE` | Dark blue (0.18, 0.22, 0.38) | Deep navy | Long, full opacity | On | On | Full | Dark, full opacity | Dark, additive glow |
+| `DAY_PROFILE` | Bright neutral (0.95, 0.95, 0.95) | Sky blue | Short, faint (0.25 opacity) | Off | Off | Subtle (0.1) | Blue-grey, 0.7 opacity | Light grey, normal blend |
 
-Profiles are lerped with ease-in-out over 1.5 seconds when toggled with `T`. See `docs/rendering.md` for full details.
+Profiles control snow opacity, boundary vignette (color + opacity), and animated fog wisps (color + opacity + blend mode) in addition to lighting and shadow parameters. All values lerp smoothly with ease-in-out over 1.5 seconds when toggled with `T`. See `docs/rendering.md` for full details.
 
 See `src/core/Config.ts` for the full list with inline documentation.
