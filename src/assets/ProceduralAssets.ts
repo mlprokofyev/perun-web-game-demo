@@ -644,6 +644,24 @@ function makeItemAncientEmberWorld(): HTMLCanvasElement {
   return c;
 }
 
+/** 7×5 interaction marker (pixel-art downward arrow ▼) */
+function makeInteractMarker(): HTMLCanvasElement {
+  const [c, ctx] = makeCanvas(7, 5);
+  ctx.fillStyle = '#E89028';
+  ctx.fillRect(1, 0, 5, 1);
+  ctx.fillRect(2, 1, 3, 1);
+  ctx.fillRect(3, 2, 1, 1);
+  ctx.fillStyle = '#C06A16';
+  ctx.fillRect(0, 0, 1, 1);
+  ctx.fillRect(6, 0, 1, 1);
+  ctx.fillRect(1, 1, 1, 1);
+  ctx.fillRect(5, 1, 1, 1);
+  ctx.fillRect(2, 2, 1, 1);
+  ctx.fillRect(4, 2, 1, 1);
+  ctx.fillRect(3, 3, 1, 1);
+  return c;
+}
+
 /** 32×32 world sprite: stone */
 function makeItemStoneWorld(): HTMLCanvasElement {
   const [c, ctx] = makeCanvas(32, 32);
@@ -702,6 +720,9 @@ export function generateProceduralAssets(): void {
     assetLoader.registerCanvas('item_stone', makeItemStone());
     assetLoader.registerCanvas('item_stone_world', makeItemStoneWorld());
   }
+  // Interaction marker
+  assetLoader.registerCanvas('interact_marker', makeInteractMarker());
+
   if (!assetLoader.has('item_ancient_ember')) {
     assetLoader.registerCanvas('item_ancient_ember', makeItemAncientEmber());
     assetLoader.registerCanvas('item_ancient_ember_world', makeItemAncientEmberWorld());

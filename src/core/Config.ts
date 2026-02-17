@@ -138,6 +138,7 @@ export const Config = {
   DOG_FOOT_OFFSET: 4,     // vertical offset from sprite bottom to visual feet (asset px)
 
   /** Dog NPC — behavior */
+  DOG_SPAWN_DELAY: 2.0,   // seconds before the dog appears on scene
   DOG_SPEED: 60,          // world px/s
   DOG_SPAWN_COL: 5.7,
   DOG_SPAWN_ROW: 1.2,
@@ -146,7 +147,8 @@ export const Config = {
   DOG_FADE_DURATION: 2.0, // seconds to go from transparent to opaque
 
   /** NPC interaction */
-  NPC_INTERACT_RADIUS: 1.2,  // grid units — distance within which "Press E" shows
+  NPC_INTERACT_RADIUS: 1.0,  // grid units — distance within which E key triggers interaction
+  NPC_ONBOARD_RADIUS: 0.6,   // grid units — distance at which [E] badge becomes visible
 
   /** Campfire — position and light */
   CAMPFIRE_COL: 2.5,

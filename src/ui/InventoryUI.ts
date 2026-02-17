@@ -27,6 +27,7 @@ export class InventoryUI {
       document.getElementById('game-container')!.appendChild(container);
     }
     this.container = container;
+    this.container.style.display = 'none';
     this.slotsEl = container.querySelector('.inventory-slots')!;
   }
 

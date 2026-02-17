@@ -62,7 +62,7 @@ registerQuests(
     objectives: [
       { description: 'Talk to the dog', type: 'talk', target: 'dog_greeting', required: 1 },
       { description: 'Find a bone', type: 'collect', target: 'bone', required: 1 },
-      { description: 'Give the bone to the dog', type: 'talk', target: 'dog_greeting', required: 2 },
+      { description: 'Give the bone to the dog', type: 'flag', target: 'dog_fed', required: 1 },
     ],
     completionFlag: 'quest_dog_bone_done',
   },
