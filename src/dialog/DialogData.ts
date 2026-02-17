@@ -45,6 +45,7 @@ export function registerDialog(tree: DialogTree): void {
 
 import { inventory } from '../items/Inventory';
 import { questTracker } from '../quests/QuestTracker';
+import { eventBus } from '../core/EventBus';
 
 export const DOG_DIALOG: DialogTree = {
   id: 'dog_greeting',
@@ -84,6 +85,9 @@ export const DOG_DIALOG: DialogTree = {
           condition: (flags) => !flags.getBool('quest_dog_bone_done') && !questTracker.isActive('q_dog_bone'),
           onSelect: (_flags) => {
             questTracker.start('q_dog_bone');
+            // Retroactively credit this conversation for the 'talk' objective
+            // (dialog:open fired before the quest was active)
+            eventBus.emit('dialog:open', { dialogId: 'dog_greeting', npcId: 'dog' });
           },
         },
         { text: "Don't worry, I'll look after you.", nextNodeId: 'end_happy' },

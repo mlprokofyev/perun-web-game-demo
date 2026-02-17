@@ -36,6 +36,8 @@ export interface RenderItem {
   opacity: number;
   /** Rotation in radians around the anchor point. Defaults to 0. */
   rotation: number;
+  /** When set, called instead of drawing the asset. Draws in screen space. */
+  drawFn?: (ctx: CanvasRenderingContext2D) => void;
 }
 
 export class Renderer {
@@ -170,6 +172,17 @@ export class Renderer {
     });
   }
 
+  /** Push a custom draw callback into the render queue, depth-sorted with other items. */
+  enqueueCustomDraw(layer: RenderLayer, depth: number, drawFn: (ctx: CanvasRenderingContext2D) => void): void {
+    this.renderQueue.push({
+      layer, depth, drawFn,
+      screenX: 0, screenY: 0,
+      assetId: '', srcX: 0, srcY: 0, srcW: 0, srcH: 0,
+      offsetX: 0, offsetY: 0, drawW: 0, drawH: 0,
+      opacity: 1, rotation: 0,
+    });
+  }
+
   /** Sort and draw a specific layer only */
   flushLayer(layer: RenderLayer): void {
     // Sort within the requested layer by depth
@@ -180,6 +193,12 @@ export class Renderer {
 
     for (const item of this.renderQueue) {
       if (item.layer !== layer) continue;
+
+      // Custom draw callback — handles its own screen-space positioning
+      if (item.drawFn) {
+        item.drawFn(this.ctx);
+        continue;
+      }
 
       const asset = assetLoader.get(item.assetId);
       if (!asset) continue;

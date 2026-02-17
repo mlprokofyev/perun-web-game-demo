@@ -82,6 +82,10 @@ export class Game {
   private itemPreviewUI: ItemPreviewUI;
   private interactPrompt: HTMLElement;
 
+  /** Overlay canvas for interaction markers (above post-processing, below DOM UI) */
+  private markerCanvas: HTMLCanvasElement;
+  private markerCtx: CanvasRenderingContext2D;
+
   /** Floating text particles for pickup feedback */
   private floatingTexts: Array<{ text: string; x: number; y: number; life: number; maxLife: number }> = [];
 
@@ -95,8 +99,9 @@ export class Game {
   /** Edge-triggered interaction tracking */
   private interactPrev: boolean = false;
 
-  /** DOM markers for interactable entities (keyed by entity id) */
-  private interactMarkers: Map<string, HTMLElement> = new Map();
+  /** ID of the nearest interactable entity currently in range (null if none) */
+  private nearestInteractId: string | null = null;
+
 
   constructor(container: HTMLElement, tileMap: TileMap) {
     this.tileMap = tileMap;
@@ -104,6 +109,28 @@ export class Game {
     this.renderer = new Renderer(container, this.camera);
     this.postProcess = new PostProcessPipeline(container, this.renderer.canvas);
     this.postProcess.enabled = Config.LIGHTING_ENABLED;
+
+    // Marker overlay canvas — sits above the WebGL post-process canvas (z-index 1)
+    // but below all DOM UI elements (z-index 10+)
+    this.markerCanvas = document.createElement('canvas');
+    Object.assign(this.markerCanvas.style, {
+      position: 'absolute',
+      top: '0', left: '0',
+      width: '100%', height: '100%',
+      pointerEvents: 'none',
+      zIndex: '2',
+      imageRendering: 'pixelated',
+    } as CSSStyleDeclaration);
+    container.appendChild(this.markerCanvas);
+    this.markerCtx = this.markerCanvas.getContext('2d')!;
+    this.markerCtx.imageSmoothingEnabled = false;
+    const syncMarkerSize = () => {
+      this.markerCanvas.width = window.innerWidth;
+      this.markerCanvas.height = window.innerHeight;
+      this.markerCtx.imageSmoothingEnabled = false;
+    };
+    syncMarkerSize();
+    window.addEventListener('resize', syncMarkerSize);
     // Ambient + shadows are now driven by applyLightingProfile() every frame
     this.postProcess.setAmbient(
       NIGHT_PROFILE.ambientR,
@@ -142,8 +169,11 @@ export class Game {
       baseB: Config.CAMPFIRE_LIGHT_B,
     });
 
-    // ── Dog NPC ───────────────────────────────────────
-    this.spawnDogNPC();
+    // ── Dog NPC (delayed spawn) ─────────────────────────
+    this.pendingEvents.push({
+      timer: Config.DOG_SPAWN_DELAY,
+      callback: () => this.spawnDogNPC(),
+    });
 
     // ── Collectibles ─────────────────────────────────
     this.spawnCollectibles();
@@ -462,7 +492,7 @@ export class Game {
     const questActive = questTracker.isActive('q_gather_sticks');
     const alreadyFed = gameFlags.getBool('sticks_in_fire');
 
-    if (hasSticks && questActive && !alreadyFed) {
+    if (hasSticks && questActive && !alreadyFed && this.isNight) {
       this.campfire.interactable = true;
       this.campfire.interactLabel = 'feed the fire';
     } else {
@@ -528,6 +558,7 @@ export class Game {
     const ember = new Collectible('secret_ancient_ember', {
       col: Config.CAMPFIRE_COL,
       row: Config.CAMPFIRE_ROW,
+      pickupRadius: 0.25,
       itemId: 'ancient_ember',
       assetId: 'item_ancient_ember_world',
       srcW: 32,
@@ -647,21 +678,31 @@ export class Game {
     const px = this.player.transform.x;
     const py = this.player.transform.y;
 
-    // Find nearest interactable entity within radius
+    // Find nearest interactable entity within interaction radius AND onboard radius
     let nearest: Entity | null = null;
     let nearestDist = Infinity;
+    let onboardEntity: Entity | null = null;
+    let onboardDist = Infinity;
 
     for (const e of this.entityManager.getAll()) {
       if (!e.interactable) continue;
-      const radius = (e instanceof InteractableObject) ? e.interactRadius : Config.NPC_INTERACT_RADIUS;
+      const interactR = (e instanceof InteractableObject) ? e.interactRadius : Config.NPC_INTERACT_RADIUS;
+      const onboardR = Config.NPC_ONBOARD_RADIUS;
       const dx = e.transform.x - px;
       const dy = e.transform.y - py;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= radius && dist < nearestDist) {
+      if (dist <= interactR && dist < nearestDist) {
         nearest = e;
         nearestDist = dist;
       }
+      if (dist <= onboardR && dist < onboardDist) {
+        onboardEntity = e;
+        onboardDist = dist;
+      }
     }
+
+    // [E] badge follows onboard radius; interaction trigger uses the tighter radius
+    this.nearestInteractId = onboardEntity?.id ?? null;
 
     // Show / hide interact prompt with dynamic text
     if (nearest) {
@@ -770,66 +811,131 @@ export class Game {
     this.renderer.applyEffectProfile(p);
   }
 
-  // ─── Interactable markers (DOM overlays) ─────────────────────
+  // ─── Interactable markers (canvas-drawn, depth-sorted) ──────
 
-  private updateInteractMarkers(): void {
+  /** Draw interaction markers on a separate overlay canvas (above post-processing).
+   *  The player's silhouette is erased from the overlay via destination-out compositing
+   *  so the player still occludes markers without affecting tree/object layering. */
+  private drawInteractMarkers(): void {
+    const ctx = this.markerCtx;
+    ctx.clearRect(0, 0, this.markerCanvas.width, this.markerCanvas.height);
+
+    if (this.stateManager.size > 1) return;
+
     const cam = this.camera;
     const zoom = cam.zoom;
-    const active = new Set<string>();
+    const markerAsset = assetLoader.get('interact_marker');
+
+    // Pre-compute player draw info for silhouette erasure
+    const pAnim = this.player.animController;
+    const pt = this.player.transform;
+    const playerDepth = pt.x + pt.y;
+    let playerDraw: { asset: CanvasImageSource; sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number } | null = null;
+    let needsPlayerErase = false;
+
+    if (pAnim) {
+      const pIso = isoToScreen(pt.x, pt.y);
+      const pScr = cam.worldToScreen(pIso.x, pIso.y);
+      const pFrame = pAnim.getCurrentFrame();
+      const pAsset = assetLoader.get(pAnim.getCurrentAssetId());
+      if (pAsset) {
+        const s = this.player.drawScale;
+        const dw = pFrame.width * s;
+        const dh = pFrame.height * s;
+        playerDraw = {
+          asset: pAsset as CanvasImageSource,
+          sx: pFrame.x, sy: pFrame.y, sw: pFrame.width, sh: pFrame.height,
+          dx: pScr.x + (-dw / 2) * zoom,
+          dy: pScr.y + (-dh + Config.TILE_HEIGHT / 2 - pt.z) * zoom,
+          dw: dw * zoom,
+          dh: dh * zoom,
+        };
+      }
+    }
 
     for (const e of this.entityManager.getAll()) {
       if (!e.interactable) continue;
-      // Skip invisible interactables that don't need markers (InteractableObject has its TileMap sprite)
-      // We show markers for NPCs, campfire, and InteractableObjects
-      active.add(e.id);
 
-      // Get or create the DOM element
-      let el = this.interactMarkers.get(e.id);
-      if (!el) {
-        el = document.createElement('div');
-        el.className = 'interact-marker';
-        // Pixel-art downward arrow: 7×5 grid scaled up to 14×10
-        el.innerHTML =
-          '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="10" viewBox="0 0 7 5" shape-rendering="crispEdges">' +
-          '<rect x="1" y="0" width="5" height="1" fill="#ED8312"/>' +
-          '<rect x="2" y="1" width="3" height="1" fill="#ED8312"/>' +
-          '<rect x="3" y="2" width="1" height="1" fill="#ED8312"/>' +
-          '<rect x="0" y="0" width="1" height="1" fill="#B5620D"/>' +
-          '<rect x="6" y="0" width="1" height="1" fill="#B5620D"/>' +
-          '<rect x="1" y="1" width="1" height="1" fill="#B5620D"/>' +
-          '<rect x="5" y="1" width="1" height="1" fill="#B5620D"/>' +
-          '<rect x="2" y="2" width="1" height="1" fill="#B5620D"/>' +
-          '<rect x="4" y="2" width="1" height="1" fill="#B5620D"/>' +
-          '<rect x="3" y="3" width="1" height="1" fill="#B5620D"/>' +
-          '</svg>';
-        document.getElementById('game-container')!.appendChild(el);
-        this.interactMarkers.set(e.id, el);
-      }
-
-      // Position: world → screen, offset upward
       const iso = isoToScreen(e.transform.x, e.transform.y);
-      const screen = cam.worldToScreen(iso.x, iso.y);
-      // Use sprite height when available, otherwise a default offset for invisible entities
+      const scr = cam.worldToScreen(iso.x, iso.y);
       const spriteH = (e.animController?.getCurrentFrame()?.height ?? 0) * e.drawScale;
+
       const defaultOffset = spriteH > 0
         ? (-spriteH + Config.TILE_HEIGHT / 2) * zoom
-        : -30 * zoom; // default offset for invisible interactables
+        : -30 * zoom;
       const bob = Math.sin(this.elapsed * 3) * 3;
-
-      // Scale marker proportionally with zoom, clamped to min/max
       const markerScale = Math.min(1.6, Math.max(0.6, zoom * 0.8));
 
-      el.style.left = `${screen.x}px`;
-      el.style.top = `${screen.y + defaultOffset - 8 + bob}px`;
-      el.style.transform = `translateX(-50%) scale(${markerScale})`;
-      el.style.display = '';
+      const mw = 14 * markerScale;
+      const mh = 10 * markerScale;
+      const markerTop = scr.y + defaultOffset - 8 + bob;
+      const markerLeft = scr.x - mw / 2;
+
+      // Draw arrow with glow
+      if (markerAsset) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(209, 165, 136, 1)';
+        ctx.shadowBlur = 5 * markerScale;
+        ctx.shadowOffsetY = 1;
+        ctx.drawImage(
+          markerAsset as CanvasImageSource,
+          0, 0, 7, 5,
+          markerLeft, markerTop, mw, mh,
+        );
+        ctx.restore();
+      }
+
+      // [E] badge
+      if (this.nearestInteractId === e.id) {
+        const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.cos(this.elapsed * Math.PI));
+        ctx.save();
+        ctx.globalAlpha = pulse;
+
+        const fontSize = 11;
+        ctx.font = `bold ${fontSize}px monospace`;
+        const tm = ctx.measureText('E');
+        const padX = 6;
+        const padY = 2;
+        const bw = tm.width + padX * 2;
+        const bh = fontSize + padY * 2;
+        const bx = scr.x - bw / 2;
+        const by = markerTop - 20 * markerScale;
+
+        ctx.fillStyle = 'rgba(8, 10, 18, 0.72)';
+        ctx.fillRect(bx, by, bw, bh);
+
+        ctx.strokeStyle = 'rgba(200, 170, 100, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+
+        ctx.fillStyle = 'rgba(240, 232, 192, 0.85)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.9)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetY = 1;
+        ctx.fillText('E', scr.x, by + bh / 2);
+
+        ctx.restore();
+      }
+
+      // Track whether any marker needs player erasure
+      const entityDepth = e.transform.x + e.transform.y;
+      if (playerDraw && playerDepth > entityDepth) {
+        needsPlayerErase = true;
+      }
     }
 
-    // Hide markers for entities that are no longer interactable
-    for (const [id, el] of this.interactMarkers) {
-      if (!active.has(id)) {
-        el.style.display = 'none';
-      }
+    // Erase the player silhouette from the overlay so the player occludes markers
+    if (needsPlayerErase && playerDraw) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.drawImage(
+        playerDraw.asset,
+        playerDraw.sx, playerDraw.sy, playerDraw.sw, playerDraw.sh,
+        playerDraw.dx, playerDraw.dy, playerDraw.dw, playerDraw.dh,
+      );
+      ctx.restore();
     }
   }
 
@@ -917,7 +1023,7 @@ export class Game {
     // 5) Draw objects & entities (depth-sorted, covers sparks)
     this.renderer.flushLayer(RenderLayer.OBJECT);
 
-    // 5) Front boundary vignette + front animated wisps — over objects
+    // 6) Front boundary vignette + front animated wisps — over objects
     this.renderer.drawBoundaryVignette(this.tileMap.cols, this.tileMap.rows, 'front');
     this.renderer.drawAnimatedEdgeFog(this.tileMap.cols, this.tileMap.rows, this.elapsed, 'front');
 
@@ -1213,8 +1319,8 @@ export class Game {
       this.postProcess.render(dt);
     }
 
-    // Interactable markers — positioned as DOM overlays so they aren't dimmed by post-process
-    this.updateInteractMarkers();
+    // Interaction markers — drawn on separate overlay canvas above post-processing
+    this.drawInteractMarkers();
   }
 }
 

@@ -25,6 +25,7 @@ export class QuestLogUI {
       document.getElementById('game-container')!.appendChild(container);
     }
     this.container = container;
+    this.container.style.display = 'none';
     this.contentEl = container.querySelector('.questlog-content')!;
   }
 

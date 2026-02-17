@@ -23,10 +23,10 @@ export class ControlsHelpUI {
             <div class="controls-help-row"><span class="key">I</span> <span class="controls-help-desc">Inventory</span></div>
             <div class="controls-help-row"><span class="key">J</span> <span class="controls-help-desc">Quest Log</span></div>
             <div class="controls-help-section">Environment</div>
-            <div class="controls-help-row"><span class="key">T</span> <span class="controls-help-desc">Day / Night</span></div>
             <div class="controls-help-row"><span class="key">N</span> <span class="controls-help-desc">Toggle Snow</span></div>
-            <div class="controls-help-row"><span class="key">L</span> <span class="controls-help-desc">Toggle Lighting</span></div>
+            <div class="controls-help-row"><span class="key">T</span> <span class="controls-help-desc">Day / Night</span></div>
             <div class="controls-help-section">Debug</div>
+            <div class="controls-help-row"><span class="key">L</span> <span class="controls-help-desc">Toggle Lighting</span></div>
             <div class="controls-help-row"><span class="key">G</span> <span class="controls-help-desc">Grid Overlay (hold)</span></div>
             <div class="controls-help-row"><span class="key">U</span> <span class="controls-help-desc">Debug Info</span></div>
           </div>
@@ -36,6 +36,7 @@ export class ControlsHelpUI {
       document.getElementById('game-container')!.appendChild(container);
     }
     this.container = container;
+    this.container.style.display = 'none';
   }
 
   show(): void {
