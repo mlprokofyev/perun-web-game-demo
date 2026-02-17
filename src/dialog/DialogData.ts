@@ -63,7 +63,7 @@ export const DOG_DIALOG: DialogTree = {
           // Only show if player has a bone AND quest is active
           condition: (flags) => inventory.has('bone') && questTracker.isActive('q_dog_bone'),
           onSelect: (flags) => {
-            inventory.remove('bone', 1);
+            inventory.remove('bone', inventory.count('bone'));
             flags.set('dog_fed', true);
           },
         },

@@ -29,8 +29,10 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
                                      │   • Interaction prompt               │
                                      │   • Inventory overlay (I)            │
                                      │   • Quest log overlay (J)            │
-                                     │   • Quest HUD (top-right)            │
+                                     │   • Quest HUD (top-right, Q toggle)  │
                                      │   • Item preview overlay             │
+                                     │   • Controls help overlay (H)        │
+                                     │   • Debug panels (U toggle)          │
                                      └──────────────────────────────────────┘
 ```
 
@@ -50,7 +52,7 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
 | 12 | Snowfall | `SnowfallEffect.ts` | 3D-projected particles with parallax depth. Gated by snow toggle. |
 | 13 | Debug grid | `Game.ts` | Optional, hold `G` |
 | 14 | Post-process | `PostProcessPipeline.ts` | WebGL2 full-screen quad with lighting shader |
-| 15 | DOM overlays | `Game.ts` / `DialogUI.ts` / `ItemPreviewUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, markers) |
+| 15 | DOM overlays | `Game.ts` / `DialogUI.ts` / `ItemPreviewUI.ts` / `ControlsHelpUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, controls help, debug panels, markers) |
 
 ### Z-Sorting
 
@@ -145,12 +147,18 @@ Limits: up to **16 point lights** and **32 occluders** per frame (GLSL array siz
 | `skyLightOffsetX/Y` | -2000/300 | -800/-1200 | Sun/moon world position offset |
 | `skyLightRadius` | 3500 | 5000 | Sky light reach |
 | `skyLightR/G/B` | 0.75/0.8/1.0 | 1.0/1.0/0.98 | Sky light color |
-| `skyLightIntensity` | 0.55 | 0.45 | Sky light brightness |
+| `skyLightIntensity` | 0.55 | 0.35 | Sky light brightness |
 | `shadowLengthMult` | 2.0 | 0.4 | Shadow reach = height × mult |
 | `shadowOpacity` | 1.0 | 0.25 | Shadow darkness (0=none, 1=full) |
 | `pointLightOpacity` | 1.0 | 0.0 | Window light intensity multiplier |
 | `fireOpacity` | 1.0 | 0.0 | Campfire flame/spark/light opacity |
 | `volRimR/G/B` | 0.6/0.75/1.0 | 0.95/0.95/1.0 | Volumetric rim light color |
+| `snowOpacity` | 1.0 | 0.1 | Snow particle intensity (0=invisible, 1=full) |
+| `vignetteOpacity` | 1.0 | 0.7 | Boundary vignette darkness |
+| `vignetteR/G/B` | 0.024/0.024/0.07 | 0.278/0.373/0.518 | Vignette color (night=dark navy, day=blue-grey) |
+| `fogWispOpacity` | 1.0 | 0.85 | Animated fog wisp intensity |
+| `fogWispR/G/B` | 0.024/0.024/0.07 | 0.851/0.851/0.851 | Fog wisp color (night=dark, day=light grey) |
+| `fogWispAdditive` | true | false | Wisp blend mode (true=`lighter` glow, false=`source-over` fog) |
 
 ### Transition System
 
@@ -164,12 +172,13 @@ const ease = t < 0.5
 activeProfile = lerpProfile(fromProfile, targetProfile, ease);
 ```
 
-All float parameters interpolate smoothly. `fireOpacity` and `pointLightOpacity` are floats (not booleans) so fire/lights fade gradually instead of snapping.
+All float parameters interpolate smoothly. `fireOpacity` and `pointLightOpacity` are floats (not booleans) so fire/lights fade gradually instead of snapping. The same applies to `snowOpacity`, `vignetteOpacity`, `fogWispOpacity`, and all color channels — vignette and fog wisps transition color and intensity between day and night.
 
 ### Integration
 
 Each frame, `applyLightingProfile()` pushes the active profile into:
 - `Renderer.setBackgroundColor()` — canvas background
+- `Renderer.applyEffectProfile()` — vignette, fog wisps, and snow opacity/color
 - `PostProcessPipeline.setAmbient()` — shader ambient
 - `PostProcessPipeline.setShadowLengthMult()` / `setShadowOpacity()` — shadow parameters
 - `Campfire.opacity` — entity visibility
@@ -300,9 +309,11 @@ Gives the player a 3D cylindrical look with directional lighting and rim highlig
 
 ## Boundary Fog
 
-Two complementary systems hide the hard diamond boundary and add atmospheric depth. Both live in `src/rendering/effects/FogEffect.ts`.
+Two independent visual layers hide the hard diamond boundary and add atmospheric depth. Both live in `src/rendering/effects/FogEffect.ts` but have separate profile-driven color, opacity, and blend mode.
 
-### Static Boundary Fog
+### 1. Boundary Vignette (Static Framing)
+
+Static radial darkening + edge gradients that frame the map.
 
 - **Radial vignette** — large elliptical gradient centered on the map
 - **Edge gradients** — linear gradient strips along each isometric diamond edge
@@ -310,14 +321,29 @@ Two complementary systems hide the hard diamond boundary and add atmospheric dep
 - `BOUNDARY_FOG_PADDING` shifts fog inward (positive) or outward (negative) from edges
 - `BOUNDARY_FOG_BACK_MULT` reduces back-edge opacity to prevent over-darkening
 
-### Animated Fog Wisps
+**Profile-driven**: Color and opacity are set per frame from the active `LightingProfile`:
+- Night: dark navy (`vignetteR/G/B` = 0.024/0.024/0.07), full opacity
+- Day: blue-grey (#475F84), reduced opacity (0.7) for a softer frame
 
-Drifting blob wisps along map edges for a misty atmosphere.
+### 2. Animated Fog Wisps (Weather)
+
+Drifting blob wisps along map edges for atmospheric fog.
 
 - `FOG_WISPS_PER_EDGE` wisps per edge, evenly distributed
 - Per-wisp animation: lateral **drift**, inward **oscillation**, opacity **breathing** — deterministic `sin` with golden-ratio phase seeding
-- Stretched ellipses drawn with `globalCompositeOperation = 'lighter'` for additive glow
-- Same back/front split as static fog, dimmed by `BOUNDARY_FOG_BACK_MULT`
+- Stretched ellipses oriented along edge tangent
+- Same back/front split as vignette, dimmed by `BOUNDARY_FOG_BACK_MULT`
+
+**Profile-driven**: Color, opacity, and blend mode are set per frame:
+- Night: dark wisps with `globalCompositeOperation = 'lighter'` for additive glow on dark background
+- Day: light grey wisps (#D9D9D9) with `globalCompositeOperation = 'source-over'` for normal fog patches (no white blowout on bright sky)
+
+### Decoupled Design
+
+Vignette and fog wisps are fully independent. Each receives its own color/opacity from the profile every frame via `applyVignetteProfile()` and `applyWispProfile()`. This means:
+- Night: dark vignette framing + glowing wisps
+- Day: soft blue-grey framing + white fog patches
+- Transition: both layers smoothly crossfade color and intensity
 
 ---
 
@@ -330,6 +356,8 @@ Drifting blob wisps along map edges for a misty atmosphere.
 - Horizontal sine-wobble (`SNOW_WOBBLE_SPEED/AMP`) and wind drift (`SNOW_WIND_SPEED`)
 - Particles wrap when falling below ground or drifting off-screen
 - Toggled with `N` key (edge-triggered)
+
+**Profile-driven opacity**: The `snowOpacity` parameter from the active `LightingProfile` multiplies all snowflake alpha values. Night = full intensity (1.0), Day = subtle (0.1). This prevents heavy snowfall from looking wrong against a bright daytime sky while keeping a gentle dusting effect.
 
 ---
 

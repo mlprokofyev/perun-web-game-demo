@@ -72,6 +72,10 @@ export class QuestTracker {
     };
     this.quests.set(questId, state);
     eventBus.emit('quest:started', { questId });
+
+    // Retroactively sync 'collect' objectives against current inventory
+    this.syncCollectObjectives(state, def);
+
     return true;
   }
 
@@ -167,6 +171,22 @@ export class QuestTracker {
 
       this.checkQuestCompletion(state, def);
     }
+  }
+
+  /** Sync 'collect' objectives with current inventory (for items obtained before quest start). */
+  private syncCollectObjectives(state: QuestState, def: QuestDef): void {
+    for (let i = 0; i < def.objectives.length; i++) {
+      const obj = def.objectives[i];
+      if (obj.type !== 'collect') continue;
+      const count = inventory.count(obj.target);
+      if (count > 0) {
+        state.progress[i] = Math.min(count, obj.required);
+        if (state.progress[i] >= obj.required) {
+          eventBus.emit('quest:objective_complete', { questId: state.questId, objectiveIndex: i });
+        }
+      }
+    }
+    this.checkQuestCompletion(state, def);
   }
 
   /** Check if all objectives are met → complete the quest. */

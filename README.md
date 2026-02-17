@@ -17,13 +17,18 @@ Open `http://localhost:5173` in your browser.
 |---|---|
 | `WASD` / Arrow keys | Move |
 | `Shift` (hold) | Run (1.8× speed) |
-| `E` | Interact with NPC |
+| `E` | Interact with NPC / objects |
 | `↑` `↓` / `W` `S` | Navigate dialog choices |
 | `Enter` / `Space` | Confirm dialog choice |
-| `ESC` | Close dialog |
+| `ESC` | Close dialog / overlay |
 | Mouse wheel | Zoom in/out |
+| `I` | Toggle inventory |
+| `J` | Toggle quest log |
 | `T` | Toggle day/night mode |
 | `N` | Toggle snowfall |
+| `H` | Controls help overlay |
+| `Q` | Toggle quest HUD |
+| `U` | Toggle debug info |
 | `L` | Toggle lighting/shadows |
 | `G` (hold) | Show debug grid overlay |
 
@@ -77,22 +82,23 @@ npm run preview   # Serve the production build locally
 │   │   ├── PhysicsSystem.ts          Movement + tile/object/entity collision
 │   │   └── AnimationSystem.ts        Animation state updates
 │   ├── rendering/
-│   │   ├── Renderer.ts               Canvas draw queue, Z-sorting, layers
+│   │   ├── Renderer.ts               Canvas draw queue, Z-sorting, layers, profile-driven effects
 │   │   ├── Camera.ts                 Viewport with smooth follow & zoom
 │   │   ├── IsometricUtils.ts         Coordinate conversion
 │   │   ├── PostProcessPipeline.ts    WebGL2 lighting & shadows
-│   │   ├── LightingProfile.ts        Day/night presets + lerp transition
+│   │   ├── LightingProfile.ts        Day/night presets + lerp transition + fog/snow profiles
 │   │   └── effects/
 │   │       ├── FireLightEffect.ts    Procedural fire flicker (breath+wobble+crackle)
-│   │       ├── SnowfallEffect.ts     Particle snowfall
-│   │       └── FogEffect.ts          Boundary + animated wisps
+│   │       ├── SnowfallEffect.ts     Particle snowfall (profile-driven opacity)
+│   │       └── FogEffect.ts          Decoupled vignette + animated fog wisps
 │   ├── dialog/
 │   │   └── DialogData.ts             Dialog tree model + sample dialog
 │   ├── states/
 │   │   └── DialogState.ts            Game state for active dialog
 │   ├── ui/
 │   │   ├── DialogUI.ts               Bottom-of-screen dialog with choices
-│   │   └── HUD.ts                    Debug overlay (position, FPS, zoom)
+│   │   ├── ControlsHelpUI.ts         Controls help overlay (H key)
+│   │   └── HUD.ts                    Debug overlay + quest HUD
 │   ├── world/
 │   │   ├── TileMap.ts                Tile grid + object storage
 │   │   └── WorldGenerator.ts         Map generation

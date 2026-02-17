@@ -509,6 +509,16 @@ function makeItemBoneWorld(): HTMLCanvasElement {
   ctx.translate(16, 16);
   ctx.rotate(-Math.PI / 5);
 
+  // Thin dark outline for ground contrast
+  ctx.fillStyle = 'rgba(20, 15, 10, 0.55)';
+  ctx.fillRect(-13, -3, 26, 8);
+  ctx.beginPath();
+  ctx.arc(-12, -2, 5.5, 0, Math.PI * 2);
+  ctx.arc(-12, 4, 5.5, 0, Math.PI * 2);
+  ctx.arc(12, -2, 5.5, 0, Math.PI * 2);
+  ctx.arc(12, 4, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+
   // Dark outline / shadow pass
   ctx.fillStyle = '#8B7D6B';
   ctx.fillRect(-12, -2, 24, 6);

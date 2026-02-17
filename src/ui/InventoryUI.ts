@@ -21,7 +21,7 @@ export class InventoryUI {
         <div class="inventory-box">
           <div class="inventory-title">INVENTORY</div>
           <div class="inventory-slots"></div>
-          <div class="inventory-hint"><span class="key">I</span> close</div>
+          <div class="inventory-hint"><span class="key">I</span> / <span class="key">ESC</span> close</div>
         </div>
       `;
       document.getElementById('game-container')!.appendChild(container);

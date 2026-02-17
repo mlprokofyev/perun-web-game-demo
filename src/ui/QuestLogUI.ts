@@ -19,7 +19,7 @@ export class QuestLogUI {
         <div class="questlog-box">
           <div class="questlog-title">QUEST LOG</div>
           <div class="questlog-content"></div>
-          <div class="questlog-hint"><span class="key">J</span> close</div>
+          <div class="questlog-hint"><span class="key">J</span> / <span class="key">ESC</span> close</div>
         </div>
       `;
       document.getElementById('game-container')!.appendChild(container);
