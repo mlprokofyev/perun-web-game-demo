@@ -137,8 +137,8 @@ export class Collectible extends Entity {
           // Parabolic arc height: 4·h·t·(1-t) peaks at t=0.5
           this.transform.z = 4 * this.launchPeakHeight * t * (1 - t);
           // Pulsing glow during flight
-          this.drawScale = this.baseScale * (1 + 0.35 * Math.sin(t * Math.PI));
-          this.opacity = Math.min(1, t * 3); // fade in quickly
+          this.drawScale = this.baseScale * (1 + 0.6 * Math.sin(t * Math.PI));
+          this.opacity = 1;
         }
         break;
       }

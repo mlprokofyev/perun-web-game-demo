@@ -1,5 +1,6 @@
 import type { Entity } from '../entities/Entity';
 import type { TileMap } from '../world/TileMap';
+import { Config } from '../core/Config';
 
 /**
  * Moves entities based on velocity and resolves collisions.
@@ -29,9 +30,9 @@ export class PhysicsSystem {
         t.y = ny;
       }
 
-      // Clamp to map bounds
-      t.x = Math.max(c.hw, Math.min(this.tileMap.cols - c.hw, t.x));
-      t.y = Math.max(c.hh, Math.min(this.tileMap.rows - c.hh, t.y));
+      // Clamp to map bounds (inset by per-edge boundary padding)
+      t.x = Math.max(Config.MAP_PAD_BACK_LEFT + c.hw, Math.min(this.tileMap.cols - Config.MAP_PAD_FRONT_RIGHT - c.hw, t.x));
+      t.y = Math.max(Config.MAP_PAD_BACK_RIGHT + c.hh, Math.min(this.tileMap.rows - Config.MAP_PAD_FRONT_LEFT - c.hh, t.y));
     }
   }
 

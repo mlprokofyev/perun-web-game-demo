@@ -39,6 +39,23 @@ export const Config = {
   /** World (reduced to keep approx same visual extent with larger tiles) */
   MAP_COLS: 6,
   MAP_ROWS: 6,
+  /** Inward padding (grid units) per diamond edge. Prevents entities from
+   *  reaching tile edges where transparent sprite areas make them look airborne.
+   *  Back edges (top of screen) typically need more padding than front edges.
+   *
+   *  Diamond layout on screen:
+   *            top
+   *      BL ◆───────◆ BR       BL = col min (back-left)
+   *       ╱           ╲        BR = row min (back-right)
+   *      ◆             ◆       FR = col max (front-right)
+   *       ╲           ╱        FL = row max (front-left)
+   *      FL ◆───────◆ FR
+   *           bottom
+   */
+  MAP_PAD_BACK_LEFT: 0.05,    // col min edge (top-left on screen)
+  MAP_PAD_BACK_RIGHT: 0.05,   // row min edge (top-right on screen)
+  MAP_PAD_FRONT_RIGHT: 0.3,  // col max edge (bottom-right on screen)
+  MAP_PAD_FRONT_LEFT: 0.3,   // row max edge (bottom-left on screen)
 
   /** Lighting — twilight sky light from upper-left */
   LIGHTING_ENABLED: true,
@@ -114,7 +131,7 @@ export const Config = {
 
   /** Snowfall weather effect — particles live in 3D world space */
   SNOW_ENABLED: true,
-  SNOW_PARTICLE_COUNT: 1000,     // total snowflakes across the map
+  SNOW_PARTICLE_COUNT: 1800,     // total snowflakes across the map
   SNOW_FALL_SPEED: 40,          // vertical fall speed (world px/s)
   SNOW_WIND_SPEED: 50,          // lateral wind drift in world px/s (positive = screen-right)
   SNOW_MIN_SIZE: 1.0,           // smallest flake screen radius (px, zoom-independent)
@@ -124,7 +141,7 @@ export const Config = {
   SNOW_WOBBLE_AMP: 25,          // wobble amplitude in world px
   SNOW_DEPTH_LAYERS: 10,         // number of parallax depth layers (1=flat, 3-5=rich depth)
   SNOW_MAX_HEIGHT: 500,         // max height above ground plane (world px)
-  SNOW_SPAWN_PADDING: 2,        // extra grid cells beyond map edges for flake spawning
+  SNOW_SPAWN_PADDING: 4,        // extra grid cells beyond map edges for flake spawning
 
   /** Dog NPC — sprite source dimensions (from actual PNGs) */
   DOG_WALK_SRC_W: 172,   // 688 / 4 frames

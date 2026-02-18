@@ -565,7 +565,7 @@ export class Game {
       assetId: 'item_ancient_ember_world',
       srcW: 32,
       srcH: 32,
-      drawH: 26,
+      drawH: 30,
     });
 
     // Start the launch arc animation
@@ -573,7 +573,7 @@ export class Game {
       { x: Config.CAMPFIRE_COL, y: Config.CAMPFIRE_ROW },
       { x: col, y: row },
       0.9,
-      70,
+      100,
     );
 
     this.entityManager.add(ember);
