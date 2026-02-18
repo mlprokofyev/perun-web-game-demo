@@ -2,7 +2,7 @@
 
 > Completed work, remaining tasks, and priority matrix.
 >
-> Last updated: 2026-02-17
+> Last updated: 2026-02-18
 
 ---
 
@@ -105,6 +105,18 @@
 | **ESC closes all modals** | Inventory (I) and Quest Log (J) panels now dismissible with ESC, matching Dialog and Item Preview behavior. Hint text updated in UI. |
 | **Dog spawn delay** | Dog NPC spawns after `DOG_SPAWN_DELAY` (2s) via pending events, not immediately. |
 
+### Phase 3c: Localization & Polish
+
+| Task | Notes |
+|------|-------|
+| **Russian localization** | All user-facing text translated to Russian: dialogs, item names/descriptions, quest titles/objectives, UI labels, interaction prompts, controls help, HUD debug labels, floating text, page title. `lang="ru"` on HTML root. |
+| **Marker occlusion fix** | Two-pass rendering in `drawInteractMarkers`: pass 1 draws markers behind the player (with `destination-out` occlusion), pass 2 draws markers in front (no occlusion). Prevents markers disappearing when player walks behind the marked entity. |
+| **HUD readability fix** | Added semi-transparent dark backgrounds with borders to `#hud`, `#debug-overlay`, `#controls-hint`, `#interact-prompt`. Reduced text-shadow blur for `#quest-hud`. Readable in both day and night modes. |
+| **Sticks asset update** | `stick_pile_1` uses `obj_sticks_snow_rotated` asset with no rotation applied. Added to asset manifest. |
+| **Sticks collider tuning** | Reduced `solidCols` from 0.4→0.2 and `solidRows` from 0.4→0.15 for `stick_pile_1` to match the visual footprint and eliminate dead-zone. |
+| **Campfire feed/burst state** | Campfire starts small/dim (0.7×/0.8×), grows to normal (1×/1×) after `feed()`. `burst()` temporarily boosts scale, light, sparks, spawn rate. `lightMult` getter dynamically combines state + burst multipliers. |
+| **Smooth burst envelope** | Replaced instant burst on/off with three-phase envelope (ramp-up 0.3s, hold, ramp-down 0.5s). All burst parameters (scale, light, sparks, spawn rate) lerp from baseline to peak using eased `burstT`. Quadratic easing: `easeIn(t)=t²`, `easeOut(t)=1-(1-t)²`. |
+
 ---
 
 ## Next Up: Phase 4 — Content & Polish
@@ -172,6 +184,12 @@
 | **P1** | Bone consumption fix | — | Done |
 | **P1** | ESC closes all modals | — | Done |
 | **P1** | Dog spawn delay | — | Done |
+| **P1** | Russian localization | 0.5 day | Done |
+| **P1** | Marker occlusion fix (two-pass) | — | Done |
+| **P1** | HUD readability (day/night) | — | Done |
+| **P1** | Sticks asset + collider tuning | — | Done |
+| **P1** | Campfire feed/burst state system | 0.5 day | Done |
+| **P1** | Smooth burst envelope (eased ramp) | — | Done |
 | **P2** | Data-driven maps (JSON) | 2 days | — |
 | **P2** | Scene/Map transitions | 1 day | — |
 | **P2** | Generalize volumetric rendering | 2 days | — |
@@ -191,7 +209,7 @@
 
 | File | Lines | Notes |
 |------|-------|-------|
-| core/Game.ts | ~1349 | Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events, profile-driven effects, controls help, debug/quest toggles, ESC-close for all modals, marker canvas overlay with player occlusion. NPC shadow hardcoded to dog constants. |
+| core/Game.ts | ~1349 | Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events, profile-driven effects, controls help, debug/quest toggles, ESC-close for all modals, two-pass marker canvas overlay with depth-aware player occlusion. Campfire light radius/intensity driven by `Campfire.lightMult`. All user-facing strings in Russian. NPC shadow hardcoded to dog constants. |
 | core/GameState.ts | ~107 | State stack with transparent/blocking flags |
 | core/EntityManager.ts | ~71 | Central registry with spatial queries |
 | core/EventBus.ts | ~78 | Fully typed. Quest, inventory, collectible events active. |
@@ -203,28 +221,28 @@
 | core/Types.ts | ~21 | Direction union type |
 | entities/Entity.ts | ~47 | Optional components, opacity, blobShadow, interactable + interactLabel |
 | entities/Player.ts | ~61 | Explicit component init |
-| entities/NPC.ts | ~144 | Walk-to with re-aim steering, fade-in, state machine, overshoot guard |
-| entities/Campfire.ts | ~130 | Spark particles, collider, animated fire, burst() for dramatic effects |
+| entities/NPC.ts | ~144 | Walk-to with re-aim steering, fade-in, state machine, overshoot guard. Default interact label in Russian. |
+| entities/Campfire.ts | ~216 | Spark particles, collider, animated fire. State-based scale/light (unfed 0.7×/0.8× → fed 1×/1×). Smooth burst envelope: ramp-up (0.3s, easeIn) → hold → ramp-down (0.5s, easeOut). All burst params lerped from burstT. |
 | entities/Collectible.ts | ~188 | IDLE/PICKING_UP/LAUNCHING/DONE states, parabolic arc launch |
 | entities/InteractableObject.ts | ~51 | Generic invisible interactable for static objects |
 | entities/TriggerZone.ts | ~101 | Invisible trigger with enter/exit events |
 | entities/AnimationController.ts | ~121 | Typed Direction, stop-on-frame-0, idle timeout |
 | entities/Components.ts | ~27 | Transform, Velocity, Collider |
-| items/ItemDef.ts | ~75 | Item type + registry. 4 built-in items (stick, bone, stone, ancient_ember) |
+| items/ItemDef.ts | ~75 | Item type + registry. 4 built-in items (stick, bone, stone, ancient_ember). Names/descriptions in Russian. |
 | items/Inventory.ts | ~137 | Add/remove/has/count, source tracking, EventBus integration |
-| quests/QuestDef.ts | ~79 | Quest + objective data model, registry. 2 quests defined. |
+| quests/QuestDef.ts | ~80 | Quest + objective data model, registry. 2 quests defined. Titles/descriptions/objectives in Russian. |
 | quests/QuestTracker.ts | ~208 | Runtime quest state, event listeners, checkFlags() |
-| dialog/DialogData.ts | ~152 | Data model + registry + quest-integrated dog dialog (condition/onSelect, bone consumption, retroactive talk credit) |
+| dialog/DialogData.ts | ~132 | Data model + registry + quest-integrated dog dialog (condition/onSelect, bone consumption, retroactive talk credit). All dialog text in Russian. |
 | states/DialogState.ts | ~107 | Transparent, blocks update. Filters choices by condition. |
 | states/InventoryState.ts | ~29 | Transparent overlay for inventory |
 | states/QuestLogState.ts | ~29 | Transparent overlay for quest log |
 | states/ItemPreviewState.ts | ~43 | Transparent overlay for item discovery dialog |
 | ui/DialogUI.ts | ~127 | Arrow/Enter/ESC navigation, mouse, hints |
-| ui/ControlsHelpUI.ts | ~53 | HTML overlay listing all controls by category. Toggle with H key. |
+| ui/ControlsHelpUI.ts | ~53 | HTML overlay listing all controls by category. Toggle with H key. All text in Russian. |
 | ui/HUD.ts | ~123 | Debug panels (toggleable with U), quest HUD tracker (toggleable with Q) |
-| ui/InventoryUI.ts | ~102 | HTML overlay: item icons, names, counts |
-| ui/QuestLogUI.ts | ~114 | HTML overlay: active/completed quests + objectives |
-| ui/ItemPreviewUI.ts | ~86 | HTML overlay: item discovery preview (icon + name + description) |
+| ui/InventoryUI.ts | ~102 | HTML overlay: item icons, names, counts. Labels in Russian. |
+| ui/QuestLogUI.ts | ~114 | HTML overlay: active/completed quests + objectives. Labels in Russian. |
+| ui/ItemPreviewUI.ts | ~86 | HTML overlay: item discovery preview (icon + name + description). Labels in Russian. |
 | systems/PhysicsSystem.ts | ~92 | Entity-vs-entity collision, overlap escape |
 | systems/AnimationSystem.ts | ~20 | Null-checks optional animController |
 | systems/InputSystem.ts | ~58 | Raw key state |
@@ -237,7 +255,7 @@
 | rendering/Camera.ts | ~66 | Unchanged |
 | rendering/IsometricUtils.ts | ~30 | Unchanged |
 | world/TileMap.ts | ~114 | WorldObject with rotation, groundLayer, shadowHeight, removeObjectById |
-| world/WorldGenerator.ts | ~87 | Campfire, sticks, trees (med_snow, big_1, pine_snow), house. Hardcoded positions. |
+| world/WorldGenerator.ts | ~87 | Campfire, sticks, trees (med_snow, big_1, pine_snow), house. Hardcoded positions. stick_pile_1 uses obj_sticks_snow_rotated, no rotation, tight collider (0.2×0.15). |
 | assets/ProceduralAssets.ts | ~740 | Campfire anim + item icons + world sprites (stick, bone, stone, ancient_ember) + interact_marker sprite |
 | main.ts | ~43 | Loads from manifest |
-| index.html | ~652 | Dialog, inventory, quest log, item preview, controls help overlays. Styled HUD + debug panels. DOM marker styles removed (now canvas-rendered). |
+| index.html | ~652 | Dialog, inventory, quest log, item preview, controls help overlays. `lang="ru"`, all labels in Russian. HUD/debug panels styled with semi-transparent dark backgrounds for day/night readability. DOM marker styles removed (now canvas-rendered). |

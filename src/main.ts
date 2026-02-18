@@ -39,5 +39,5 @@ async function boot(): Promise<void> {
 boot().catch(err => {
   console.error('[Perun] Boot failed:', err);
   const loading = document.getElementById('loading');
-  if (loading) loading.textContent = 'Failed to start: ' + err.message;
+  if (loading) loading.textContent = 'Ошибка запуска: ' + err.message;
 });

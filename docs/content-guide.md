@@ -84,7 +84,7 @@ The game uses a **6x6 isometric grid**. Coordinates are (col, row) -- fractional
 | Med tree | (4.5, 3.1) | obj_tree_med_snow | 438x600 | 0.9x0.9 | radius 35 |
 | Pine tree | (0.5, 4.9) | obj_tree_pine_snow | 438x652 | 0.9x0.9 | radius 35 |
 | Campfire pit | (2.5, 4.4) | obj_campfire (campfire.png) | 140x90 | No (entity has collider) | radius 20, groundLayer |
-| Sticks snow 1 | (0.5, 3.1) | obj_sticks_snow (sticks_snow.png) | 130x80 | Yes (0.6x0.4) | None |
+| Sticks snow 1 | (0.5, 3.1) | obj_sticks_snow_rotated (sticks_snow_rotated.png) | 130x80 | Yes (0.2×0.15) | None |
 | Sticks snow 2 | (2.8, 2.2) | obj_sticks_snow | 130x80 | Yes (0.1x0.1) | None |
 | Campfire entity | (2.5, 4.4) | campfire_anim (procedural) | 80px tall | Yes (collider 0.15x0.15) | Blob shadow |
 | Window light | (1.0, 2.8) | -- (point light) | -- | -- | -- |
@@ -113,7 +113,8 @@ All assets are declared in public/assets/data/assets.json:
     { "id": "tile_grass", "path": "/assets/sprites/tiles/ground_snow_thick.png" },
     { "id": "char_idle",  "path": "/assets/sprites/characters/player_idle.png" },
     { "id": "obj_campfire", "path": "/assets/sprites/objects/campfire.png" },
-    { "id": "obj_sticks_snow", "path": "/assets/sprites/objects/sticks_snow.png" }
+    { "id": "obj_sticks_snow", "path": "/assets/sprites/objects/sticks_snow.png" },
+    { "id": "obj_sticks_snow_rotated", "path": "/assets/sprites/objects/sticks_snow_rotated.png" }
   ]
 }
 ```

@@ -22,15 +22,14 @@ export function generateWorld(): TileMap {
   tileMap.addObject({
     id: 'stick_pile_1',
     col: 0.5, row: 3.1,
-    assetId: 'obj_sticks_snow',
+    assetId: 'obj_sticks_snow_rotated',
     width: 130, height: 80,
     srcW: 258, srcH: 158,
     anchorY: 0.85,
     solid: true,
-    solidCols: 0.6,
-    solidRows: 0.4,
-    shadowRadius: 0,      // no shadow for flat ground object
-    rotation: 25,
+    solidCols: 0.2,
+    solidRows: 0.1,
+    shadowRadius: 0,
   });
 
   // Second sticks pile
