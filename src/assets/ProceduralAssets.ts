@@ -569,88 +569,187 @@ function makeItemStone(): HTMLCanvasElement {
   return c;
 }
 
-/** 24×24 inventory icon: glowing ancient ember */
-function makeItemAncientEmber(): HTMLCanvasElement {
+/** 24×24 inventory icon: pink transparent plastic cigarette lighter */
+function makeItemPinkLighter(): HTMLCanvasElement {
   const [c, ctx] = makeCanvas(24, 24);
-  // Outer glow
-  const glow = ctx.createRadialGradient(12, 12, 2, 12, 12, 11);
-  glow.addColorStop(0, 'rgba(255, 180, 40, 0.6)');
-  glow.addColorStop(0.5, 'rgba(255, 100, 20, 0.3)');
-  glow.addColorStop(1, 'rgba(255, 50, 0, 0)');
+  const bx = 9;
+  const bw = 6;
+  const cx = bx + bw / 2;
+  const cy = 13;
+
+  // ── Soft pink radial glow behind the lighter ──
+  const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, 12);
+  glow.addColorStop(0, 'rgba(240, 160, 190, 0.45)');
+  glow.addColorStop(0.5, 'rgba(220, 130, 170, 0.18)');
+  glow.addColorStop(1, 'rgba(200, 100, 140, 0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, 24, 24);
-  // Crystal body
-  ctx.fillStyle = '#FF6B1A';
-  ctx.beginPath();
-  ctx.moveTo(12, 3);
-  ctx.lineTo(18, 10);
-  ctx.lineTo(16, 19);
-  ctx.lineTo(8, 19);
-  ctx.lineTo(6, 10);
-  ctx.closePath();
-  ctx.fill();
-  // Inner highlight
-  ctx.fillStyle = '#FFAA44';
-  ctx.beginPath();
-  ctx.moveTo(12, 5);
-  ctx.lineTo(15, 10);
-  ctx.lineTo(14, 16);
-  ctx.lineTo(10, 16);
-  ctx.lineTo(9, 10);
-  ctx.closePath();
-  ctx.fill();
-  // Hot core
-  ctx.fillStyle = '#FFD080';
-  ctx.beginPath();
-  ctx.ellipse(12, 11, 3, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Spark dots
-  ctx.fillStyle = '#FFF0C0';
-  ctx.fillRect(11, 8, 2, 2);
-  ctx.fillRect(13, 12, 1, 1);
+
+  // ── 1px white outline around entire lighter silhouette ──
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  // Around fork prongs
+  ctx.fillRect(bx, 0, 1, 3);
+  ctx.fillRect(bx + 2, 0, 2, 1);
+  ctx.fillRect(bx + 3, 0, 1, 3);
+  ctx.fillRect(bx + 5, 0, 1, 3);
+  // Around wheel
+  ctx.fillRect(bx - 1, 3, 1, 2);
+  ctx.fillRect(bx + bw, 3, 1, 2);
+  // Around cap
+  ctx.fillRect(bx - 2, 5, 1, 3);
+  ctx.fillRect(bx + bw + 1, 5, 1, 3);
+  // Around body
+  ctx.fillRect(bx - 2, 8, 1, 14);
+  ctx.fillRect(bx + bw + 1, 8, 1, 14);
+  ctx.fillRect(bx - 1, 22, bw + 2, 1);
+
+  // ── Fork prongs ──
+  ctx.fillStyle = '#16161c';
+  ctx.fillRect(bx + 1, 0, 1, 3);
+  ctx.fillRect(bx + 4, 0, 1, 3);
+
+  // ── Spark wheel ──
+  ctx.fillStyle = '#222228';
+  ctx.fillRect(bx, 3, bw, 2);
+  ctx.fillStyle = '#38383e';
+  ctx.fillRect(bx + 1, 3, bw - 2, 1);
+
+  // ── Metal cap — stepped wider ──
+  ctx.fillStyle = '#f0f0f4';
+  ctx.fillRect(bx - 1, 5, bw + 2, 1);
+  ctx.fillStyle = '#ccccda';
+  ctx.fillRect(bx - 1, 6, bw + 2, 1);
+  ctx.fillStyle = '#9898a8';
+  ctx.fillRect(bx - 1, 7, bw + 2, 1);
+
+  // ── Body outline ──
+  const bodyTop = 8;
+  const bodyH = 14;
+  ctx.fillStyle = '#8a4860';
+  ctx.fillRect(bx - 1, bodyTop, 1, bodyH);
+  ctx.fillRect(bx + bw, bodyTop, 1, bodyH);
+  ctx.fillRect(bx, bodyTop + bodyH, bw, 1);
+
+  // ── Pink transparent plastic body ──
+  ctx.fillStyle = '#e8a0b8';
+  ctx.fillRect(bx, bodyTop, bw, bodyH);
+
+  // Left highlight
+  ctx.fillStyle = '#f4c0d4';
+  ctx.fillRect(bx, bodyTop, 2, bodyH - 1);
+  ctx.fillStyle = '#fce0ec';
+  ctx.fillRect(bx, bodyTop + 1, 1, 3);
+
+  // Internal gas tube
+  ctx.fillStyle = '#c87898';
+  ctx.fillRect(bx + 3, bodyTop + 1, 2, bodyH - 2);
+  ctx.fillStyle = '#a06078';
+  ctx.fillRect(bx + 3, bodyTop + 3, 1, 2);
+
+  // Butane fuel level
+  ctx.fillStyle = '#c0586e';
+  ctx.fillRect(bx + 1, bodyTop + 8, 4, 5);
+  ctx.fillStyle = '#a84060';
+  ctx.fillRect(bx + 2, bodyTop + 9, 2, 3);
+
+  // Right edge shadow
+  ctx.fillStyle = '#d48c9c';
+  ctx.fillRect(bx + 5, bodyTop, 1, bodyH - 1);
+
   return c;
 }
 
-/** 32×32 world sprite: glowing ancient ember */
-function makeItemAncientEmberWorld(): HTMLCanvasElement {
+/** 32×32 world sprite: pink transparent plastic cigarette lighter */
+function makeItemPinkLighterWorld(): HTMLCanvasElement {
   const [c, ctx] = makeCanvas(32, 32);
-  // Outer glow
-  const glow = ctx.createRadialGradient(16, 16, 3, 16, 16, 15);
-  glow.addColorStop(0, 'rgba(255, 180, 40, 0.5)');
-  glow.addColorStop(0.5, 'rgba(255, 100, 20, 0.25)');
-  glow.addColorStop(1, 'rgba(255, 50, 0, 0)');
+  const bx = 12;
+  const bw = 8;
+  const cx = bx + bw / 2;
+  const cy = 17;
+
+  // ── Soft pink radial glow ──
+  const glow = ctx.createRadialGradient(cx, cy, 3, cx, cy, 16);
+  glow.addColorStop(0, 'rgba(240, 160, 190, 0.40)');
+  glow.addColorStop(0.5, 'rgba(220, 130, 170, 0.15)');
+  glow.addColorStop(1, 'rgba(200, 100, 140, 0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, 32, 32);
-  // Crystal body
-  ctx.fillStyle = '#FF6B1A';
-  ctx.beginPath();
-  ctx.moveTo(16, 4);
-  ctx.lineTo(24, 13);
-  ctx.lineTo(21, 25);
-  ctx.lineTo(11, 25);
-  ctx.lineTo(8, 13);
-  ctx.closePath();
-  ctx.fill();
-  // Inner highlight
-  ctx.fillStyle = '#FFAA44';
-  ctx.beginPath();
-  ctx.moveTo(16, 7);
-  ctx.lineTo(21, 13);
-  ctx.lineTo(19, 22);
-  ctx.lineTo(13, 22);
-  ctx.lineTo(11, 13);
-  ctx.closePath();
-  ctx.fill();
-  // Hot core
-  ctx.fillStyle = '#FFD080';
-  ctx.beginPath();
-  ctx.ellipse(16, 15, 4, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Spark dots
-  ctx.fillStyle = '#FFF0C0';
-  ctx.fillRect(15, 10, 2, 2);
-  ctx.fillRect(17, 15, 2, 2);
-  ctx.fillRect(13, 14, 1, 1);
+
+  // ── 1px white outline around entire lighter silhouette ──
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.50)';
+  // Around fork prongs
+  ctx.fillRect(bx + 1, 0, 1, 4);
+  ctx.fillRect(bx + 3, 0, 2, 1);
+  ctx.fillRect(bx + 4, 0, 1, 4);
+  ctx.fillRect(bx + 6, 0, 1, 4);
+  // Around wheel
+  ctx.fillRect(bx - 1, 4, 1, 3);
+  ctx.fillRect(bx + bw, 4, 1, 3);
+  // Around cap
+  ctx.fillRect(bx - 2, 7, 1, 4);
+  ctx.fillRect(bx + bw + 1, 7, 1, 4);
+  // Around body
+  ctx.fillRect(bx - 2, 11, 1, 18);
+  ctx.fillRect(bx + bw + 1, 11, 1, 18);
+  ctx.fillRect(bx - 1, 29, bw + 2, 1);
+
+  // ── Fork prongs ──
+  ctx.fillStyle = '#16161c';
+  ctx.fillRect(bx + 2, 0, 1, 4);
+  ctx.fillRect(bx + 5, 0, 1, 4);
+
+  // ── Spark wheel ──
+  ctx.fillStyle = '#222228';
+  ctx.fillRect(bx, 4, bw, 3);
+  ctx.fillStyle = '#38383e';
+  ctx.fillRect(bx + 1, 4, bw - 2, 1);
+
+  // ── Metal cap — stepped wider ──
+  ctx.fillStyle = '#f0f0f4';
+  ctx.fillRect(bx - 1, 7, bw + 2, 1);
+  ctx.fillStyle = '#ccccda';
+  ctx.fillRect(bx - 1, 8, bw + 2, 2);
+  ctx.fillStyle = '#9898a8';
+  ctx.fillRect(bx - 1, 10, bw + 2, 1);
+
+  // ── Body outline ──
+  const bodyTop = 11;
+  const bodyH = 18;
+  ctx.fillStyle = '#8a4860';
+  ctx.fillRect(bx - 1, bodyTop, 1, bodyH);
+  ctx.fillRect(bx + bw, bodyTop, 1, bodyH);
+  ctx.fillRect(bx, bodyTop + bodyH, bw, 1);
+
+  // ── Pink transparent plastic body ──
+  ctx.fillStyle = '#e8a0b8';
+  ctx.fillRect(bx, bodyTop, bw, bodyH);
+
+  // Left highlight
+  ctx.fillStyle = '#f4c0d4';
+  ctx.fillRect(bx, bodyTop, 3, bodyH - 1);
+  ctx.fillStyle = '#fce0ec';
+  ctx.fillRect(bx, bodyTop + 1, 2, 4);
+  ctx.fillStyle = '#fff0f4';
+  ctx.fillRect(bx + 1, bodyTop + 2, 1, 2);
+
+  // Internal gas tube
+  ctx.fillStyle = '#c87898';
+  ctx.fillRect(bx + 4, bodyTop + 1, 3, bodyH - 2);
+  ctx.fillStyle = '#a06078';
+  ctx.fillRect(bx + 4, bodyTop + 4, 2, 3);
+
+  // Butane fuel level
+  ctx.fillStyle = '#c0586e';
+  ctx.fillRect(bx + 2, bodyTop + 10, 5, 7);
+  ctx.fillStyle = '#a84060';
+  ctx.fillRect(bx + 3, bodyTop + 12, 3, 4);
+  ctx.fillStyle = '#983855';
+  ctx.fillRect(bx + 4, bodyTop + 13, 2, 2);
+
+  // Right edge shadow
+  ctx.fillStyle = '#d48c9c';
+  ctx.fillRect(bx + 7, bodyTop, 1, bodyH - 1);
+
   return c;
 }
 
@@ -733,8 +832,8 @@ export function generateProceduralAssets(): void {
   // Interaction marker
   assetLoader.registerCanvas('interact_marker', makeInteractMarker());
 
-  if (!assetLoader.has('item_ancient_ember')) {
-    assetLoader.registerCanvas('item_ancient_ember', makeItemAncientEmber());
-    assetLoader.registerCanvas('item_ancient_ember_world', makeItemAncientEmberWorld());
+  if (!assetLoader.has('item_pink_lighter')) {
+    assetLoader.registerCanvas('item_pink_lighter', makeItemPinkLighter());
+    assetLoader.registerCanvas('item_pink_lighter_world', makeItemPinkLighterWorld());
   }
 }

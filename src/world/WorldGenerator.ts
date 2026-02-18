@@ -21,14 +21,14 @@ export function generateWorld(): TileMap {
   // Sticks pile with snow — low ground object, short shadow over full footprint
   tileMap.addObject({
     id: 'stick_pile_1',
-    col: 0.5, row: 3.1,
+    col: 0.3, row: 3.1,
     assetId: 'obj_sticks_snow_rotated',
     width: 130, height: 80,
     srcW: 258, srcH: 158,
     anchorY: 0.85,
     solid: true,
-    solidCols: 0.2,
-    solidRows: 0.1,
+    solidCols: 0.1,
+    solidRows: 0.3,
     shadowRadius: 0,
   });
 
@@ -41,7 +41,7 @@ export function generateWorld(): TileMap {
     srcW: 258, srcH: 158,
     anchorY: 0.85,
     solid: true,
-    solidCols: 0.1,
+    solidCols: 0.2,
     solidRows: 0.1,
     shadowRadius: 0,
   });

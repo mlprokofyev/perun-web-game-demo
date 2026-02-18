@@ -11,6 +11,8 @@ export interface DialogChoice {
   condition?: (flags: GameFlags) => boolean;
   /** Optional: executed when the player picks this choice (before advancing). */
   onSelect?: (flags: GameFlags) => void;
+  /** Optional tag displayed as a colored badge before the text (e.g. 'quest', 'action', 'new'). */
+  tag?: 'quest' | 'action' | 'new';
 }
 
 /** One "beat" in a conversation — the NPC speaks, then the player chooses. */
@@ -59,6 +61,7 @@ export const DOG_DIALOG: DialogTree = {
         {
           text: 'Вот, погрызи!',
           nextNodeId: 'give_bone',
+          tag: 'quest',
           condition: (flags) => inventory.has('bone') && questTracker.isActive('q_dog_bone'),
           onSelect: (flags) => {
             inventory.remove('bone', inventory.count('bone'));
@@ -99,7 +102,7 @@ export const DOG_DIALOG: DialogTree = {
       speaker: 'Пёс',
       text: '*глаза округляются, радостно берёт кость и начинает грызть её с явным наслаждением!*',
       choices: [
-        { text: 'Приятного аппетита, серый!', nextNodeId: 'end_happy_quest' },
+        { text: 'Ну ты, серый!', nextNodeId: 'end_happy_quest' },
       ],
     },
     end_happy_quest: {

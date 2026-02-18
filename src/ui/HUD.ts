@@ -4,18 +4,27 @@ import type { TileMap } from '../world/TileMap';
 import { questTracker } from '../quests/QuestTracker';
 import { getQuestDef } from '../quests/QuestDef';
 import { inventory } from '../items/Inventory';
+import { getItemDef } from '../items/ItemDef';
+import { assetLoader } from '../core/AssetLoader';
+import { eventBus } from '../core/EventBus';
 
 /** Simple HTML overlay HUD */
 export class HUD {
   private hudEl: HTMLElement;
   private debugEl: HTMLElement;
   private questHudEl: HTMLElement;
+  private invPreviewEl: HTMLElement;
   private fps: number = 0;
   private frameCount: number = 0;
   private fpsTimer: number = 0;
 
   private _debugVisible = false;
   private _questHudVisible = true;
+
+  /** Cached icon data URLs keyed by asset id */
+  private iconCache: Map<string, string> = new Map();
+  /** Dirty flag — rebuild inv preview HTML only when inventory changes */
+  private invDirty: boolean = true;
 
   constructor() {
     this.hudEl = document.getElementById('hud')!;
@@ -33,6 +42,16 @@ export class HUD {
       document.getElementById('game-container')!.appendChild(qh);
     }
     this.questHudEl = qh;
+
+    let ip = document.getElementById('inv-preview');
+    if (!ip) {
+      ip = document.createElement('div');
+      ip.id = 'inv-preview';
+      document.getElementById('game-container')!.appendChild(ip);
+    }
+    this.invPreviewEl = ip;
+
+    eventBus.on('inventory:changed', () => { this.invDirty = true; });
   }
 
   get debugVisible(): boolean { return this._debugVisible; }
@@ -86,6 +105,9 @@ export class HUD {
 
     // Active quest objective tracker
     this.updateQuestHud();
+
+    // Inventory quick-preview
+    this.updateInvPreview();
   }
 
   private updateQuestHud(): void {
@@ -119,5 +141,72 @@ export class HUD {
 
     this.questHudEl.innerHTML = html;
     this.questHudEl.style.display = '';
+  }
+
+  private updateInvPreview(): void {
+    const slots = inventory.getSlots();
+    if (slots.length === 0) {
+      this.invPreviewEl.style.display = 'none';
+      return;
+    }
+
+    // Position below quest HUD (use offsetTop/offsetHeight — both share same parent)
+    if (this.questHudEl.style.display !== 'none' && this.questHudEl.offsetHeight > 0) {
+      this.invPreviewEl.style.top = `${this.questHudEl.offsetTop + this.questHudEl.offsetHeight + 6}px`;
+    } else {
+      this.invPreviewEl.style.top = '14px';
+    }
+
+    if (!this.invDirty) {
+      this.invPreviewEl.style.display = 'block';
+      return;
+    }
+    this.invDirty = false;
+
+    let itemsHtml = '<div class="inv-preview-items">';
+    for (const slot of slots) {
+      const def = getItemDef(slot.itemId);
+      if (!def) continue;
+
+      const iconUrl = this.getIconDataUrl(def.iconAssetId);
+      const iconHtml = iconUrl
+        ? `<img src="${iconUrl}" width="20" height="20" class="inv-preview-icon">`
+        : `<span class="inv-preview-icon-fallback">${def.name[0]}</span>`;
+
+      const countStr = slot.count > 1 ? `<span class="inv-preview-count">×${slot.count}</span>` : '';
+      itemsHtml += `<div class="inv-preview-slot" title="${def.name}">${iconHtml}${countStr}</div>`;
+    }
+    itemsHtml += '</div>';
+
+    this.invPreviewEl.innerHTML = itemsHtml +
+      '<div class="inv-preview-hint"><span class="inv-preview-key">I</span> — инвентарь</div>';
+    this.invPreviewEl.style.display = 'block';
+  }
+
+  private getIconDataUrl(assetId: string): string | null {
+    const cached = this.iconCache.get(assetId);
+    if (cached) return cached;
+
+    const icon = assetLoader.get(assetId);
+    if (!icon) return null;
+
+    const sz = assetLoader.getSize(assetId);
+    const sw = sz?.width ?? 24;
+    const sh = sz?.height ?? 24;
+    const scale = Math.min(20 / sw, 20 / sh);
+    const dw = Math.round(sw * scale);
+    const dh = Math.round(sh * scale);
+
+    const cvs = document.createElement('canvas');
+    cvs.width = 20;
+    cvs.height = 20;
+    const ctx = cvs.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(icon as CanvasImageSource, 0, 0, sw, sh,
+      Math.round((20 - dw) / 2), Math.round((20 - dh) / 2), dw, dh);
+
+    const url = cvs.toDataURL();
+    this.iconCache.set(assetId, url);
+    return url;
   }
 }

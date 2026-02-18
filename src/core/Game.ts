@@ -96,6 +96,11 @@ export class Game {
   private elapsed: number = 0;
   private running: boolean = false;
 
+  /** Onboarding move hint — shown once on start, dismissed on first movement */
+  private onboardingHintActive: boolean = true;
+  private onboardingFadeOut: number = 0;
+  private static readonly ONBOARDING_FADE_DURATION = 0.6;
+
   /** Edge-triggered interaction tracking */
   private interactPrev: boolean = false;
 
@@ -466,6 +471,67 @@ export class Game {
     ctx.restore();
   }
 
+  private drawOnboardingHint(): void {
+    let alpha: number;
+    if (this.onboardingHintActive) {
+      alpha = Math.min(1, this.elapsed * 2);
+    } else if (this.onboardingFadeOut > 0) {
+      alpha = this.onboardingFadeOut / Game.ONBOARDING_FADE_DURATION;
+    } else {
+      return;
+    }
+
+    const pw = isoToScreen(this.player.transform.x, this.player.transform.y);
+    const screen = this.camera.worldToScreen(pw.x, pw.y);
+    const x = screen.x;
+    const y = screen.y - CHAR_DRAW_H * 0.8 * this.camera.zoom;
+
+    // Gentle bob
+    const bob = Math.sin(this.elapsed * 2.5) * 3;
+
+    const ctx = this.renderer.ctx;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+
+    const line1 = 'нажми ←↑↓→';
+    const line2 = 'для движения';
+    const lineH = 16;
+    const padX = 14;
+    const padY = 8;
+    const w1 = ctx.measureText(line1).width;
+    const w2 = ctx.measureText(line2).width;
+    const boxW = Math.max(w1, w2) + padX * 2;
+    const boxH = lineH * 2 + padY * 2;
+    const bx = x - boxW / 2;
+    const by = y + bob - padY - lineH;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    const r = 6;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.lineTo(bx + boxW - r, by);
+    ctx.quadraticCurveTo(bx + boxW, by, bx + boxW, by + r);
+    ctx.lineTo(bx + boxW, by + boxH - r);
+    ctx.quadraticCurveTo(bx + boxW, by + boxH, bx + boxW - r, by + boxH);
+    ctx.lineTo(bx + r, by + boxH);
+    ctx.quadraticCurveTo(bx, by + boxH, bx, by + boxH - r);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#e8dcc0';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(line1, x, y + bob);
+    ctx.fillText(line1, x, y + bob);
+    ctx.strokeText(line2, x, y + bob + lineH);
+    ctx.fillText(line2, x, y + bob + lineH);
+    ctx.restore();
+  }
+
   // ─── Trigger zone updates ──────────────────────────────────
 
   private updateTriggerZones(): void {
@@ -525,7 +591,7 @@ export class Game {
     const iso = isoToScreen(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
     const screen = this.camera.worldToScreen(iso.x, iso.y);
     this.floatingTexts.push({
-      text: '🔥 Костёр разгорается!',
+      text: 'Как вспыхнул!',
       x: screen.x,
       y: screen.y - 40,
       life: 1.5,
@@ -543,40 +609,50 @@ export class Game {
   }
 
   /**
-   * Spawn the secret "Ancient Ember" item — launches from the campfire
+   * Spawn the secret lighter — launches from the campfire
    * along a parabolic arc to a random position nearby.
    */
   private spawnSecretItem(): void {
-    // Random landing position: 1–2 grid units from campfire in a random direction
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 1.0 + Math.random() * 1.0;
-    const landCol = Config.CAMPFIRE_COL + Math.cos(angle) * dist;
-    const landRow = Config.CAMPFIRE_ROW + Math.sin(angle) * dist;
+    // Random landing position: 1–2 grid units from campfire, validated against colliders
+    const maxAttempts = 20;
+    let col: number = Config.CAMPFIRE_COL;
+    let row: number = Config.CAMPFIRE_ROW;
 
-    // Clamp to map bounds (with some padding)
-    const col = Math.max(0.5, Math.min(this.tileMap.cols - 0.5, landCol));
-    const row = Math.max(0.5, Math.min(this.tileMap.rows - 0.5, landRow));
+    for (let i = 0; i < maxAttempts; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 1.0 + Math.random() * 1.0;
+      const c = Math.max(0.5, Math.min(this.tileMap.cols - 0.5, Config.CAMPFIRE_COL + Math.cos(angle) * dist));
+      const r = Math.max(0.5, Math.min(this.tileMap.rows - 0.5, Config.CAMPFIRE_ROW + Math.sin(angle) * dist));
 
-    const ember = new Collectible('secret_ancient_ember', {
+      if (this.tileMap.isTileWalkable(Math.floor(c), Math.floor(r)) &&
+          !this.tileMap.collidesWithObject(c, r, 0.15, 0.15)) {
+        col = c;
+        row = r;
+        break;
+      }
+    }
+
+    const lighter = new Collectible('secret_pink_lighter', {
       col: Config.CAMPFIRE_COL,
       row: Config.CAMPFIRE_ROW,
       pickupRadius: 0.33,
-      itemId: 'ancient_ember',
-      assetId: 'item_ancient_ember_world',
-      srcW: 32,
-      srcH: 32,
-      drawH: 30,
+      itemId: 'pink_lighter',
+      assetId: 'item_pink_lighter_world',
+      srcW: 43,
+      srcH: 87,
+      drawH: 26,
     });
+    lighter.glowEffect = { radius: 28, r: 230, g: 140, b: 180, opacity: 0.25 };
 
     // Start the launch arc animation
-    ember.startLaunch(
+    lighter.startLaunch(
       { x: Config.CAMPFIRE_COL, y: Config.CAMPFIRE_ROW },
       { x: col, y: row },
       0.9,
       100,
     );
 
-    this.entityManager.add(ember);
+    this.entityManager.add(lighter);
 
     // Floating text at the campfire
     const iso = isoToScreen(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
@@ -629,8 +705,21 @@ export class Game {
 
   /** @internal — called by PlayingState */
   _update(dt: number): void {
-    this.player.handleInput(this.inputManager);
+    if (!this.inventoryUI.visible && !this.itemPreviewUI.visible) {
+      this.player.handleInput(this.inputManager);
+    }
     const entities = this.entityManager.getAll();
+
+    // Dismiss onboarding hint on first player movement
+    if (this.onboardingHintActive) {
+      const v = this.player.velocity;
+      if (v.vx !== 0 || v.vy !== 0) {
+        this.onboardingHintActive = false;
+        this.onboardingFadeOut = Game.ONBOARDING_FADE_DURATION;
+      }
+    } else if (this.onboardingFadeOut > 0) {
+      this.onboardingFadeOut -= dt;
+    }
 
     this.physics.update(dt, entities);
 
@@ -727,6 +816,23 @@ export class Game {
       }
     }
     this.interactPrev = eDown;
+  }
+
+  private openInventory(): void {
+    this.inventoryUI.show(
+      (itemId: string) => {
+        const def = getItemDef(itemId);
+        if (!def) return;
+        this.inventoryUI.hide();
+        this.itemPreviewUI.show(def, () => {
+          this.itemPreviewUI.hide();
+          this.openInventory();
+        }, { showLabel: false });
+      },
+      () => {
+        this.inventoryUI.hide();
+      },
+    );
   }
 
   private openDialog(npc: NPC): void {
@@ -1038,6 +1144,18 @@ export class Game {
       );
     }
 
+    // 3b) Entity glow effects
+    for (const entity of this.entityManager.getAll()) {
+      const g = entity.glowEffect;
+      if (!g) continue;
+      const iso = isoToScreen(entity.transform.x, entity.transform.y);
+      this.renderer.drawGlow(
+        iso.x, iso.y, entity.transform.z,
+        g.radius, g.r, g.g, g.b,
+        g.opacity * entity.opacity,
+      );
+    }
+
     // 4) Campfire spark particles — drawn before entities so the player covers them
     if (this.activeProfile.fireOpacity > 0.001) {
       this.drawCampfireSparks();
@@ -1057,6 +1175,9 @@ export class Game {
 
     // Floating text feedback (pickup "+1" etc.)
     this.drawFloatingTexts();
+
+    // Onboarding move hint
+    this.drawOnboardingHint();
 
     // Debug grid overlay (hold action)
     if (this.inputManager.isActionDown(Action.DEBUG_GRID)) {
@@ -1078,15 +1199,12 @@ export class Game {
     this.snowTogglePrev = nDown;
 
     // Toggle inventory (edge-triggered)
+    // When inventory or item-preview is open, InventoryUI/ItemPreviewUI handle their own keys.
     const iDown = this.inputManager.isActionDown(Action.INVENTORY);
-    if (iDown && !this.inventoryTogglePrev) {
-      if (this.inventoryUI.visible) {
-        this.inventoryUI.hide();
-      } else {
-        this.questLogUI.hide();
-        this.controlsHelpUI.hide();
-        this.inventoryUI.show();
-      }
+    if (iDown && !this.inventoryTogglePrev && !this.inventoryUI.visible && !this.itemPreviewUI.visible) {
+      this.questLogUI.hide();
+      this.controlsHelpUI.hide();
+      this.openInventory();
     }
     this.inventoryTogglePrev = iDown;
 
@@ -1118,8 +1236,8 @@ export class Game {
 
     const escDown = this.inputManager.isActionDown(Action.PAUSE);
     if (escDown) {
-      if (this.inventoryUI.visible) {
-        this.inventoryUI.hide();
+      if (this.inventoryUI.visible || this.itemPreviewUI.visible) {
+        // handled by InventoryUI / ItemPreviewUI keydown listeners
       } else if (this.questLogUI.visible) {
         this.questLogUI.hide();
       } else if (this.controlsHelpUI.visible) {
