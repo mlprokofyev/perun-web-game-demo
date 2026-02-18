@@ -35,6 +35,9 @@ export class Entity {
   /** Blob shadow parameters. null = no shadow drawn. */
   blobShadow: { rx: number; ry: number; opacity: number } | null = null;
 
+  /** Radial glow drawn beneath the sprite. null = no glow. */
+  glowEffect: { radius: number; r: number; g: number; b: number; opacity: number } | null = null;
+
   /** Whether this entity can currently be interacted with (E key). */
   interactable: boolean = false;
 

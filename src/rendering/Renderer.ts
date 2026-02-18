@@ -269,6 +269,36 @@ export class Renderer {
     ctx.restore();
   }
 
+  /**
+   * Draw a soft radial glow beneath an entity at a world position.
+   * Rendered with 'lighter' composite so it adds light rather than covering.
+   */
+  drawGlow(
+    worldX: number, worldY: number, z: number,
+    radius: number, r: number, g: number, b: number, opacity: number,
+  ): void {
+    const cam = this.camera;
+    const zoom = cam.zoom;
+    const s = cam.worldToScreen(worldX, worldY);
+    const sr = radius * zoom;
+    const sy = s.y + (Config.TILE_HEIGHT / 2 - z) * zoom;
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    const grad = ctx.createRadialGradient(s.x, sy, 0, s.x, sy, sr);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
+    grad.addColorStop(0.4, `rgba(${r},${g},${b},${opacity * 0.5})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(s.x, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   // ───────── Profile-driven effects ─────────
 
   /** Push lighting profile values into vignette, fog wisps, and snow.

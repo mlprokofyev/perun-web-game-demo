@@ -43,8 +43,11 @@ export class DialogUI {
     node.choices.forEach((choice, i) => {
       const li = document.createElement('li');
       li.className = 'dialog-choice';
+      const tagHtml = choice.tag
+        ? `<span class="dialog-tag dialog-tag--${choice.tag}">${DialogUI.TAG_LABELS[choice.tag] ?? choice.tag}</span> `
+        : '';
       li.innerHTML =
-        `<span class="dialog-choice-pointer">▸</span> ${this.escapeHtml(choice.text)}`;
+        `<span class="dialog-choice-pointer">▸</span> ${tagHtml}${this.escapeHtml(choice.text)}`;
       li.addEventListener('click', () => onChoice(i));
       li.addEventListener('mouseenter', () => {
         this.selectedIndex = i;
@@ -117,6 +120,12 @@ export class DialogUI {
       this.keydownHandler = null;
     }
   }
+
+  private static readonly TAG_LABELS: Record<string, string> = {
+    quest: 'Квест',
+    action: 'Действие',
+    new: 'Новое',
+  };
 
   private escapeHtml(text: string): string {
     return text

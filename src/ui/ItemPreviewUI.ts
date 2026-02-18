@@ -8,6 +8,7 @@ import { assetLoader } from '../core/AssetLoader';
  */
 export class ItemPreviewUI {
   private container: HTMLElement;
+  private labelEl: HTMLElement;
   private iconCanvas: HTMLCanvasElement;
   private nameEl: HTMLElement;
   private descEl: HTMLElement;
@@ -15,6 +16,8 @@ export class ItemPreviewUI {
 
   constructor() {
     this.container = document.getElementById('item-preview-container')!;
+    this.container.style.display = 'none';
+    this.labelEl = this.container.querySelector('.item-preview-label')!;
     this.iconCanvas = this.container.querySelector('.item-preview-icon') as HTMLCanvasElement;
     this.nameEl = this.container.querySelector('.item-preview-name')!;
     this.descEl = this.container.querySelector('.item-preview-desc')!;
@@ -25,7 +28,7 @@ export class ItemPreviewUI {
    * @param item  The ItemDef to display.
    * @param onClose  Callback when the player dismisses the dialog.
    */
-  show(item: ItemDef, onClose: () => void): void {
+  show(item: ItemDef, onClose: () => void, options?: { showLabel?: boolean }): void {
     this.removeKeyListener();
 
     // ── Render the item icon onto the preview canvas ──
@@ -40,10 +43,16 @@ export class ItemPreviewUI {
       const size = assetLoader.getSize(item.iconAssetId);
       const sw = size?.width ?? 24;
       const sh = size?.height ?? 24;
-      ctx.drawImage(iconSrc as CanvasImageSource, 0, 0, sw, sh, 0, 0, 64, 64);
+      const scale = Math.min(64 / sw, 64 / sh);
+      const dw = Math.round(sw * scale);
+      const dh = Math.round(sh * scale);
+      const dx = Math.round((64 - dw) / 2);
+      const dy = Math.round((64 - dh) / 2);
+      ctx.drawImage(iconSrc as CanvasImageSource, 0, 0, sw, sh, dx, dy, dw, dh);
     }
 
     // ── Text content ──
+    this.labelEl.style.display = (options?.showLabel !== false) ? '' : 'none';
     this.nameEl.textContent = item.name;
     this.descEl.textContent = item.description;
 

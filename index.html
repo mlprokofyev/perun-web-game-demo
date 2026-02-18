@@ -100,6 +100,70 @@
       text-decoration: line-through;
       text-decoration-color: rgba(138, 168, 112, 0.4);
     }
+    /* ── Inventory quick-preview (below quest HUD) ──── */
+    #inv-preview {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      margin-top: 0;
+      font-family: monospace;
+      font-size: 11px;
+      color: #c8c0a0;
+      background: rgba(10, 12, 18, 0.45);
+      border: 1px solid rgba(180, 170, 140, 0.12);
+      border-radius: 5px;
+      padding: 8px 10px;
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+    .inv-preview-items {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .inv-preview-slot {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      background: rgba(180, 170, 140, 0.08);
+      border: 1px solid rgba(180, 170, 140, 0.12);
+      border-radius: 3px;
+      padding: 3px 5px;
+    }
+    .inv-preview-icon {
+      image-rendering: pixelated;
+      display: block;
+    }
+    .inv-preview-icon-fallback {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      line-height: 20px;
+      font-size: 12px;
+      color: #d0c8a0;
+    }
+    .inv-preview-count {
+      font-size: 11px;
+      color: #d0c8a0;
+    }
+    .inv-preview-hint {
+      font-size: 10px;
+      color: #908870;
+      text-align: center;
+    }
+    .inv-preview-key {
+      display: inline-block;
+      background: rgba(180, 170, 140, 0.15);
+      border: 1px solid rgba(180, 170, 140, 0.25);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 10px;
+      color: #c8c0a0;
+      line-height: 16px;
+    }
     #controls-hint {
       position: absolute;
       bottom: 14px;
@@ -361,6 +425,34 @@
     .dialog-choice.selected .dialog-choice-pointer {
       opacity: 1;
     }
+    .dialog-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      vertical-align: middle;
+      position: relative;
+      top: -1px;
+    }
+    .dialog-tag--quest {
+      background: rgba(210, 180, 60, 0.2);
+      border: 1px solid rgba(210, 180, 60, 0.4);
+      color: #e8d060;
+    }
+    .dialog-tag--action {
+      background: rgba(100, 180, 220, 0.2);
+      border: 1px solid rgba(100, 180, 220, 0.4);
+      color: #80c8e8;
+    }
+    .dialog-tag--new {
+      background: rgba(120, 210, 120, 0.2);
+      border: 1px solid rgba(120, 210, 120, 0.4);
+      color: #90e090;
+    }
 
     /* ── Inventory overlay ───────────────────────────── */
     #inventory-container {
@@ -403,6 +495,22 @@
       padding: 6px 8px;
       background: rgba(180, 170, 140, 0.06);
       border-radius: 3px;
+      border-left: 2px solid transparent;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .inventory-slot.selected {
+      background: rgba(180, 170, 140, 0.18);
+      border-left-color: #c8a84e;
+    }
+    .inventory-pointer {
+      color: #c8a84e;
+      font-size: 14px;
+      width: 12px;
+      flex-shrink: 0;
+      visibility: hidden;
+    }
+    .inventory-slot.selected .inventory-pointer {
+      visibility: visible;
     }
     .inventory-icon {
       image-rendering: pixelated;
