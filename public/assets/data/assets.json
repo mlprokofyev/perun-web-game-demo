@@ -21,6 +21,7 @@
 
     { "id": "obj_campfire",             "path": "assets/sprites/objects/campfire.png" },
     { "id": "obj_sticks_snow",          "path": "assets/sprites/objects/sticks_snow.png" },
+    { "id": "obj_sticks_snow_rotated", "path": "assets/sprites/objects/sticks_snow_rotated.png" },
 
     { "id": "dog_walk_west",           "path": "assets/sprites/characters/dog_walk_west.png" },
     { "id": "dog_idle",                "path": "assets/sprites/characters/dog_idle.png" }

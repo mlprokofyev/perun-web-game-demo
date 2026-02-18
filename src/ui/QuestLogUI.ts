@@ -17,9 +17,9 @@ export class QuestLogUI {
       container.id = 'questlog-container';
       container.innerHTML = `
         <div class="questlog-box">
-          <div class="questlog-title">QUEST LOG</div>
+          <div class="questlog-title">ЖУРНАЛ ЗАДАНИЙ</div>
           <div class="questlog-content"></div>
-          <div class="questlog-hint"><span class="key">J</span> / <span class="key">ESC</span> close</div>
+          <div class="questlog-hint"><span class="key">J</span> / <span class="key">ESC</span> закрыть</div>
         </div>
       `;
       document.getElementById('game-container')!.appendChild(container);
@@ -52,7 +52,7 @@ export class QuestLogUI {
     if (active.length === 0 && completed.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'questlog-empty';
-      empty.textContent = 'No quests yet.';
+      empty.textContent = 'Заданий пока нет.';
       this.contentEl.appendChild(empty);
       return;
     }
@@ -61,7 +61,7 @@ export class QuestLogUI {
     if (active.length > 0) {
       const header = document.createElement('div');
       header.className = 'questlog-section';
-      header.textContent = '— Active —';
+      header.textContent = '— Активные —';
       this.contentEl.appendChild(header);
 
       for (const state of active) {
@@ -73,7 +73,7 @@ export class QuestLogUI {
     if (completed.length > 0) {
       const header = document.createElement('div');
       header.className = 'questlog-section';
-      header.textContent = '— Completed —';
+      header.textContent = '— Завершённые —';
       this.contentEl.appendChild(header);
 
       for (const state of completed) {

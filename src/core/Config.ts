@@ -34,7 +34,7 @@ export const Config = {
   CAMERA_ZOOM_MIN: 0.85,
   CAMERA_ZOOM_MAX: 2,
   CAMERA_ZOOM_STEP: 0.25,
-  CAMERA_DEFAULT_ZOOM: 1.25,
+  CAMERA_DEFAULT_ZOOM: 1.0,
 
   /** World (reduced to keep approx same visual extent with larger tiles) */
   MAP_COLS: 6,

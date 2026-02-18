@@ -67,20 +67,20 @@ export class HUD {
       const t = player.transform;
       const dir = player.animController.getDirection();
       const itemCount = inventory.getSlots().length;
-      const invStr = itemCount > 0 ? `Items: ${itemCount}` : '';
+      const invStr = itemCount > 0 ? `Предметы: ${itemCount}` : '';
 
       this.hudEl.style.display = '';
       this.hudEl.innerHTML = `
-        Pos: ${t.x.toFixed(1)}, ${t.y.toFixed(1)}<br>
-        Dir: ${dir}${invStr ? '<br>' + invStr : ''}
+        Поз: ${t.x.toFixed(1)}, ${t.y.toFixed(1)}<br>
+        Напр: ${dir}${invStr ? '<br>' + invStr : ''}
       `;
 
       this.debugEl.style.display = '';
       this.debugEl.innerHTML = `
         FPS: ${this.fps}<br>
-        Zoom: ${camera.zoom.toFixed(1)}x<br>
-        Map: ${tileMap.cols}×${tileMap.rows}<br>
-        Objects: ${tileMap.objects.length}
+        Масштаб: ${camera.zoom.toFixed(1)}x<br>
+        Карта: ${tileMap.cols}×${tileMap.rows}<br>
+        Объекты: ${tileMap.objects.length}
       `;
     }
 

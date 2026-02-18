@@ -112,7 +112,7 @@ export class NPC extends Entity {
           this.opacity = 1;
           this.npcState = NPCState.IDLE;
           this.interactable = true;
-          this.interactLabel = 'talk';
+          this.interactLabel = 'поговорить';
           this.collider.solid = true; // become solid once settled
           // Switch to idle animation using last facing direction
           const dir = this.animController.getDirection();

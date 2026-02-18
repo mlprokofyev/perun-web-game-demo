@@ -50,7 +50,7 @@
 │  │  Config    │  │  TileMap   │  │  Isometric Grid          │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
 │                                                                 │
-│  UI Layer                                                       │
+│  UI Layer (all text in Russian)                                 │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
 │  │  DialogUI  │  │ InventoryUI│  │  QuestLogUI /            │ │
 │  │            │  │            │  │  ItemPreviewUI / HUD /   │ │
@@ -458,14 +458,55 @@ This prevents the character from appearing stuck mid-stride when the player rele
 
 ## Campfire Entity
 
-`src/entities/Campfire.ts` — animated fire with a particle spark system.
+`src/entities/Campfire.ts` — animated fire with a particle spark system and stateful visual scaling.
 
 - Renders using `AnimationController` with a procedurally generated sprite sheet (`campfire_anim`)
 - Also renders a static `obj_campfire` PNG on the ground layer (beneath the player)
 - Manages its own `sparks` array — particles that rise, drift, and fade
 - Has a solid `Collider` (configurable `hw`/`hh`)
 - `opacity` is driven by `LightingProfile.fireOpacity` for smooth day/night transitions
-- `burst(duration)` — dramatically increases spark emission rate and max sparks for a timed period (used for campfire interaction feedback)
+
+### Campfire State
+
+The campfire starts small/dim and grows after feeding:
+
+| State | Scale Mult | Light Mult | Trigger |
+|-------|-----------|------------|---------|
+| **Unfed** (initial) | 0.7× | 0.8× | — |
+| **Fed** | 1.0× | 1.0× | `feed()` — permanently upgrades after adding sticks |
+
+`drawScale` and `lightMult` are derived from base values × state multipliers × burst envelope.
+
+### Burst Envelope
+
+`burst(duration)` triggers a smooth effect envelope instead of an instant pop:
+
+```
+burstT
+1.0 ┤     ╭──────────╮
+    │    ╱            ╲
+    │   ╱              ╲
+0.0 ┤──╯                ╰──
+    └──┬──┬──────────┬──┬──
+       rampUp  hold  rampDown
+```
+
+Three phases within the total `burstDuration`:
+
+- **Ramp up** (0.3s) — `easeIn(t) = t²` from 0 to 1
+- **Hold** — stays at 1 for the bulk of the duration
+- **Ramp down** (0.5s) — `easeOut(t) = 1-(1-t)²` from 1 to 0
+
+All burst parameters are derived by lerping between baseline and peak using the normalized `burstT`:
+
+| Parameter | Baseline | Peak |
+|-----------|----------|------|
+| Max sparks | 30 | 50 |
+| Spawn rate | 14/s | 30/s |
+| Scale mult | 1× | 1.25× |
+| Light mult | 1× | 1.2× |
+
+The `lightMult` getter returns `_lightMult * lerp(1, peakLightMult, burstT)`, so Game.ts reads smoothly interpolated values every frame without any code changes.
 
 ### Spark Particles
 
@@ -563,7 +604,7 @@ Interaction markers (pixel-art arrow + `[E]` badge) are rendered on a dedicated 
 
 - **Above post-processing**: Markers remain at full brightness regardless of lighting/shadow state.
 - **Above static objects**: Markers float above trees and other world objects to stay visible.
-- **Below player** (when appropriate): Player occlusion is achieved via `globalCompositeOperation = 'destination-out'` — the player's sprite is drawn on the marker canvas to erase marker pixels where the player should appear in front (based on depth comparison).
+- **Below player** (when appropriate): Player occlusion uses a **two-pass** approach. Pass 1 draws markers for entities deeper than (behind) the player — these are immediately occluded by stamping the player sprite with `destination-out`. Pass 2 draws markers for entities shallower than (in front of) the player — no occlusion needed since the player is behind them. This prevents markers from disappearing when the player walks behind the marked entity.
 - **Below DOM UI**: Markers don't obscure dialog, inventory, or other UI panels.
 
 ### Visibility Rules

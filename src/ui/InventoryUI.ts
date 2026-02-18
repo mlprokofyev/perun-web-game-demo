@@ -19,9 +19,9 @@ export class InventoryUI {
       container.id = 'inventory-container';
       container.innerHTML = `
         <div class="inventory-box">
-          <div class="inventory-title">INVENTORY</div>
+          <div class="inventory-title">ИНВЕНТАРЬ</div>
           <div class="inventory-slots"></div>
-          <div class="inventory-hint"><span class="key">I</span> / <span class="key">ESC</span> close</div>
+          <div class="inventory-hint"><span class="key">I</span> / <span class="key">ESC</span> закрыть</div>
         </div>
       `;
       document.getElementById('game-container')!.appendChild(container);
@@ -52,7 +52,7 @@ export class InventoryUI {
     if (slots.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'inventory-empty';
-      empty.textContent = 'Empty';
+      empty.textContent = 'Пусто';
       this.slotsEl.appendChild(empty);
       return;
     }

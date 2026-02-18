@@ -52,15 +52,13 @@ export const DOG_DIALOG: DialogTree = {
   startNodeId: 'start',
   nodes: {
     start: {
-      speaker: 'Dog',
-      text: '*wags tail and looks at you with big warm eyes*',
+      speaker: 'Пёс',
+      text: '*виляет хвостом и смотрит на тебя большими тёплыми глазами*',
       choices: [
-        { text: 'Hey there, buddy! Are you lost?', nextNodeId: 'lost' },
-        { text: 'What a good boy!', nextNodeId: 'good_boy' },
+        { text: 'Где ты пропадал? Я начал переживать!', nextNodeId: 'lost' },
         {
-          text: 'Here, I found a bone for you!',
+          text: 'Вот, погрызи!',
           nextNodeId: 'give_bone',
-          // Only show if player has a bone AND quest is active
           condition: (flags) => inventory.has('bone') && questTracker.isActive('q_dog_bone'),
           onSelect: (flags) => {
             inventory.remove('bone', inventory.count('bone'));
@@ -68,81 +66,62 @@ export const DOG_DIALOG: DialogTree = {
           },
         },
         {
-          text: '(The dog seems happy now.)',
+          text: '(Пёс выглядит довольным.)',
           nextNodeId: 'end_happy_quest',
           condition: (flags) => flags.getBool('dog_fed'),
         },
-        { text: 'Shoo! Go away!', nextNodeId: 'shoo' },
+        { text: 'Опять ты! Кыш, проваливай!', nextNodeId: 'shoo' },
       ],
     },
     lost: {
-      speaker: 'Dog',
-      text: '*tilts head and whimpers softly, then nudges your hand with a cold nose*',
+      speaker: 'Пёс',
+      text: '*наклоняет голову и тихонько ворчит, потом тычется носом в твою руку*',
       choices: [
         {
-          text: "Don't worry, I'll look after you. Let me find something for you.",
+          text: 'Ладно, не переживай. Найду тебе что-нибудь.',
           nextNodeId: 'quest_accept',
           condition: (flags) => !flags.getBool('quest_dog_bone_done') && !questTracker.isActive('q_dog_bone'),
           onSelect: (_flags) => {
             questTracker.start('q_dog_bone');
-            // Retroactively credit this conversation for the 'talk' objective
-            // (dialog:open fired before the quest was active)
             eventBus.emit('dialog:open', { dialogId: 'dog_greeting', npcId: 'dog' });
           },
-        },
-        { text: "Don't worry, I'll look after you.", nextNodeId: 'end_happy' },
-        { text: 'I wish I had something to give you...', nextNodeId: 'end_happy' },
+        }
       ],
     },
     quest_accept: {
-      speaker: 'Dog',
-      text: '*perks up and sniffs the air hopefully, tail wagging faster*',
+      speaker: 'Пёс',
+      text: '*оживляется и принюхивается с надеждой, хвост виляет быстрее*',
       choices: [
-        { text: "I'll find something, hold on!", nextNodeId: null },
+        { text: 'Да найду что-нибудь, подожди!', nextNodeId: null },
       ],
     },
     give_bone: {
-      speaker: 'Dog',
-      text: '*eyes go wide, grabs the bone gently, and starts gnawing on it with pure joy!*',
+      speaker: 'Пёс',
+      text: '*глаза округляются, радостно берёт кость и начинает грызть её с явным наслаждением!*',
       choices: [
-        { text: 'Enjoy it, buddy!', nextNodeId: 'end_happy_quest' },
+        { text: 'Приятного аппетита, серый!', nextNodeId: 'end_happy_quest' },
       ],
     },
     end_happy_quest: {
-      speaker: 'Dog',
-      text: '*lies down contentedly with the bone between paws, tail sweeping the ground*',
+      speaker: 'Пёс',
+      text: '*довольно укладывается, зажав кость между лап, хвост метёт по земле*',
       choices: [
-        { text: '[End]', nextNodeId: null },
-      ],
-    },
-    good_boy: {
-      speaker: 'Dog',
-      text: '*barks happily and does a little spin, tail wagging furiously*',
-      choices: [
-        { text: 'Want to come along with me?', nextNodeId: 'end_happy' },
-        { text: "Stay here, I'll be back.", nextNodeId: 'end_stay' },
+        { text: '[Конец]', nextNodeId: null },
       ],
     },
     shoo: {
-      speaker: 'Dog',
-      text: "*lowers ears and looks at the ground... but doesn't move*",
+      speaker: 'Пёс',
+      text: '*прижимает уши и смотрит в землю...*',
       choices: [
-        { text: "...Sorry. I didn't mean that.", nextNodeId: 'lost' },
-        { text: '[Walk away]', nextNodeId: null },
-      ],
-    },
-    end_happy: {
-      speaker: 'Dog',
-      text: '*settles down next to you and lets out a content sigh*',
-      choices: [
-        { text: '[End]', nextNodeId: null },
+        { text: '...Лааадно, вспылил, прости. День сегодня не задался.', nextNodeId: 'lost' },
+        { text: '[Уйти]', nextNodeId: null },
       ],
     },
     end_stay: {
-      speaker: 'Dog',
-      text: '*sits down obediently and watches you walk away with hopeful eyes*',
+      speaker: 'Пёс',
+      text: '*послушно садится и провожает тебя взглядом, полным надежды*',
       choices: [
-        { text: '[End]', nextNodeId: null },
+        { text: '[Конец]', nextNodeId: null },
       ],
     },
   },

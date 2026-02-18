@@ -248,8 +248,7 @@ export class Game {
 
   private spawnCampfire(): Campfire {
     const fire = new Campfire(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
-    const scale = Config.CAMPFIRE_DRAW_H / CAMPFIRE_FRAME_H;
-    fire.drawScale = scale;
+    fire.setBaseScale(Config.CAMPFIRE_DRAW_H / CAMPFIRE_FRAME_H);
     fire.blobShadow = { rx: 12, ry: 6, opacity: 0.18 };
 
     fire.animController.addAnimation('burn', {
@@ -357,7 +356,7 @@ export class Game {
       const obj = new InteractableObject(pile.entityId, {
         col: pile.col,
         row: pile.row,
-        label: 'collect sticks',
+        label: 'собрать хворост',
         onInteract: () => {
           const added = inventory.add('stick', 1, pile.entityId);
           if (added > 0) {
@@ -366,7 +365,7 @@ export class Game {
             const iso = isoToScreen(pile.col, pile.row);
             const screen = this.camera.worldToScreen(iso.x, iso.y);
             this.floatingTexts.push({
-              text: '+1 Stick',
+              text: '+1 Палка',
               x: screen.x,
               y: screen.y - 30,
               life: 1.2,
@@ -494,7 +493,7 @@ export class Game {
 
     if (hasSticks && questActive && !alreadyFed && this.isNight) {
       this.campfire.interactable = true;
-      this.campfire.interactLabel = 'feed the fire';
+      this.campfire.interactLabel = 'подкинуть дрова';
     } else {
       this.campfire.interactable = false;
       this.campfire.interactLabel = '';
@@ -519,11 +518,14 @@ export class Game {
     // Disable further campfire interaction
     this.campfire.interactable = false;
 
+    // Permanently boost the campfire (bigger, brighter)
+    this.campfire.feed();
+
     // Floating text feedback
     const iso = isoToScreen(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
     const screen = this.camera.worldToScreen(iso.x, iso.y);
     this.floatingTexts.push({
-      text: '🔥 Sticks added!',
+      text: '🔥 Костёр разгорается!',
       x: screen.x,
       y: screen.y - 40,
       life: 1.5,
@@ -580,7 +582,7 @@ export class Game {
     const iso = isoToScreen(Config.CAMPFIRE_COL, Config.CAMPFIRE_ROW);
     const screen = this.camera.worldToScreen(iso.x, iso.y);
     this.floatingTexts.push({
-      text: '✨ Something emerged!',
+      text: '✨ Вжух!',
       x: screen.x,
       y: screen.y - 60,
       life: 2.0,
@@ -706,8 +708,8 @@ export class Game {
 
     // Show / hide interact prompt with dynamic text
     if (nearest) {
-      const label = nearest.interactLabel || 'interact';
-      this.interactPrompt.innerHTML = `Press <span class="key">E</span> to ${label}`;
+      const label = nearest.interactLabel || 'действовать';
+      this.interactPrompt.innerHTML = `Нажмите <span class="key">E</span> — ${label}`;
       this.interactPrompt.style.display = '';
     } else {
       this.interactPrompt.style.display = 'none';
@@ -831,7 +833,6 @@ export class Game {
     const pt = this.player.transform;
     const playerDepth = pt.x + pt.y;
     let playerDraw: { asset: CanvasImageSource; sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number } | null = null;
-    let needsPlayerErase = false;
 
     if (pAnim) {
       const pIso = isoToScreen(pt.x, pt.y);
@@ -853,81 +854,28 @@ export class Game {
       }
     }
 
+    // Partition interactables by depth relative to the player.
+    // Pass 1: entities behind the player (player occludes their markers)
+    // Pass 2: entities in front of / at the same depth as the player (markers stay fully visible)
+    const behind: Entity[] = [];
+    const inFront: Entity[] = [];
     for (const e of this.entityManager.getAll()) {
       if (!e.interactable) continue;
-
-      const iso = isoToScreen(e.transform.x, e.transform.y);
-      const scr = cam.worldToScreen(iso.x, iso.y);
-      const spriteH = (e.animController?.getCurrentFrame()?.height ?? 0) * e.drawScale;
-
-      const defaultOffset = spriteH > 0
-        ? (-spriteH + Config.TILE_HEIGHT / 2) * zoom
-        : -30 * zoom;
-      const bob = Math.sin(this.elapsed * 3) * 3;
-      const markerScale = Math.min(1.6, Math.max(0.6, zoom * 0.8));
-
-      const mw = 14 * markerScale;
-      const mh = 10 * markerScale;
-      const markerTop = scr.y + defaultOffset - 8 + bob;
-      const markerLeft = scr.x - mw / 2;
-
-      // Draw arrow with glow
-      if (markerAsset) {
-        ctx.save();
-        ctx.shadowColor = 'rgba(209, 165, 136, 1)';
-        ctx.shadowBlur = 5 * markerScale;
-        ctx.shadowOffsetY = 1;
-        ctx.drawImage(
-          markerAsset as CanvasImageSource,
-          0, 0, 7, 5,
-          markerLeft, markerTop, mw, mh,
-        );
-        ctx.restore();
-      }
-
-      // [E] badge
-      if (this.nearestInteractId === e.id) {
-        const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.cos(this.elapsed * Math.PI));
-        ctx.save();
-        ctx.globalAlpha = pulse;
-
-        const fontSize = 11;
-        ctx.font = `bold ${fontSize}px monospace`;
-        const tm = ctx.measureText('E');
-        const padX = 6;
-        const padY = 2;
-        const bw = tm.width + padX * 2;
-        const bh = fontSize + padY * 2;
-        const bx = scr.x - bw / 2;
-        const by = markerTop - 20 * markerScale;
-
-        ctx.fillStyle = 'rgba(8, 10, 18, 0.72)';
-        ctx.fillRect(bx, by, bw, bh);
-
-        ctx.strokeStyle = 'rgba(200, 170, 100, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
-
-        ctx.fillStyle = 'rgba(240, 232, 192, 0.85)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0,0,0,0.9)';
-        ctx.shadowBlur = 2;
-        ctx.shadowOffsetY = 1;
-        ctx.fillText('E', scr.x, by + bh / 2);
-
-        ctx.restore();
-      }
-
-      // Track whether any marker needs player erasure
       const entityDepth = e.transform.x + e.transform.y;
       if (playerDraw && playerDepth > entityDepth) {
-        needsPlayerErase = true;
+        behind.push(e);
+      } else {
+        inFront.push(e);
       }
     }
 
-    // Erase the player silhouette from the overlay so the player occludes markers
-    if (needsPlayerErase && playerDraw) {
+    // Pass 1: draw markers that should be occluded by the player
+    for (const e of behind) {
+      this.drawSingleMarker(ctx, e, cam, zoom, markerAsset ?? null);
+    }
+
+    // Erase the player silhouette — only affects pass-1 markers
+    if (behind.length > 0 && playerDraw) {
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
       ctx.drawImage(
@@ -935,6 +883,81 @@ export class Game {
         playerDraw.sx, playerDraw.sy, playerDraw.sw, playerDraw.sh,
         playerDraw.dx, playerDraw.dy, playerDraw.dw, playerDraw.dh,
       );
+      ctx.restore();
+    }
+
+    // Pass 2: draw markers that should NOT be occluded (drawn after erase)
+    for (const e of inFront) {
+      this.drawSingleMarker(ctx, e, cam, zoom, markerAsset ?? null);
+    }
+  }
+
+  /** Draw the arrow marker and optional [E] badge for a single interactable entity. */
+  private drawSingleMarker(
+    ctx: CanvasRenderingContext2D,
+    e: Entity,
+    cam: Camera,
+    zoom: number,
+    markerAsset: CanvasImageSource | null,
+  ): void {
+    const iso = isoToScreen(e.transform.x, e.transform.y);
+    const scr = cam.worldToScreen(iso.x, iso.y);
+    const spriteH = (e.animController?.getCurrentFrame()?.height ?? 0) * e.drawScale;
+
+    const defaultOffset = spriteH > 0
+      ? (-spriteH + Config.TILE_HEIGHT / 2) * zoom
+      : -30 * zoom;
+    const bob = Math.sin(this.elapsed * 3) * 3;
+    const markerScale = Math.min(1.6, Math.max(0.6, zoom * 0.8));
+
+    const mw = 14 * markerScale;
+    const mh = 10 * markerScale;
+    const markerTop = scr.y + defaultOffset - 8 + bob;
+    const markerLeft = scr.x - mw / 2;
+
+    if (markerAsset) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(209, 165, 136, 1)';
+      ctx.shadowBlur = 5 * markerScale;
+      ctx.shadowOffsetY = 1;
+      ctx.drawImage(
+        markerAsset as CanvasImageSource,
+        0, 0, 7, 5,
+        markerLeft, markerTop, mw, mh,
+      );
+      ctx.restore();
+    }
+
+    if (this.nearestInteractId === e.id) {
+      const pulse = 0.65 + 0.35 * (0.5 + 0.5 * Math.cos(this.elapsed * Math.PI));
+      ctx.save();
+      ctx.globalAlpha = pulse;
+
+      const fontSize = 11;
+      ctx.font = `bold ${fontSize}px monospace`;
+      const tm = ctx.measureText('E');
+      const padX = 6;
+      const padY = 2;
+      const bw = tm.width + padX * 2;
+      const bh = fontSize + padY * 2;
+      const bx = scr.x - bw / 2;
+      const by = markerTop - 20 * markerScale;
+
+      ctx.fillStyle = 'rgba(8, 10, 18, 0.72)';
+      ctx.fillRect(bx, by, bw, bh);
+
+      ctx.strokeStyle = 'rgba(200, 170, 100, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+
+      ctx.fillStyle = 'rgba(240, 232, 192, 0.85)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 2;
+      ctx.shadowOffsetY = 1;
+      ctx.fillText('E', scr.x, by + bh / 2);
+
       ctx.restore();
     }
   }
@@ -1196,14 +1219,15 @@ export class Game {
           fireWorld.x,
           fireWorld.y + Config.TILE_HEIGHT / 2 - Config.CAMPFIRE_LIGHT_HEIGHT,
         );
+        const fireLightMult = this.campfire.lightMult;
         this.postProcess.addLight({
           x: fireScreen.x,
           y: fireScreen.y,
-          radius: Config.CAMPFIRE_LIGHT_RADIUS * this.camera.zoom * this.campfireFlicker.radius,
+          radius: Config.CAMPFIRE_LIGHT_RADIUS * this.camera.zoom * this.campfireFlicker.radius * fireLightMult,
           r: this.campfireFlicker.r,
           g: this.campfireFlicker.g,
           b: this.campfireFlicker.b,
-          intensity: Config.CAMPFIRE_LIGHT_INTENSITY * this.campfireFlicker.intensity * p.fireOpacity,
+          intensity: Config.CAMPFIRE_LIGHT_INTENSITY * this.campfireFlicker.intensity * p.fireOpacity * fireLightMult,
           flicker: 0,
         });
       }

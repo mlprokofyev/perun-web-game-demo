@@ -25,7 +25,7 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
 │ 11. Floating text          │       ┌──────────────────────────────────────┐
 │ 12. Snowfall particles     │       │ DOM overlays                         │
 │ 13. Debug overlay (opt.)   │       │   • Dialog UI                        │
-└────────────────────────────┘       │   • Interact markers (SVG arrows)    │
+└────────────────────────────┘       │   • Interact markers (canvas arrows)  │
                                      │   • Interaction prompt               │
                                      │   • Inventory overlay (I)            │
                                      │   • Quest log overlay (J)            │
@@ -52,7 +52,7 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
 | 12 | Snowfall | `SnowfallEffect.ts` | 3D-projected particles with parallax depth. Gated by snow toggle. |
 | 13 | Debug grid | `Game.ts` | Optional, hold `G` |
 | 14 | Post-process | `PostProcessPipeline.ts` | WebGL2 full-screen quad with lighting shader |
-| 15 | DOM overlays | `Game.ts` / `DialogUI.ts` / `ItemPreviewUI.ts` / `ControlsHelpUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, controls help, debug panels, markers) |
+| 15 | DOM overlays | `Game.ts` / `DialogUI.ts` / `ItemPreviewUI.ts` / `ControlsHelpUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, controls help, debug panels, markers). HUD/debug panels use semi-transparent dark backgrounds for readability in both day and night modes. |
 
 ### Z-Sorting
 
@@ -128,7 +128,7 @@ This makes light pools appear elliptical (wider horizontally, compressed vertica
 |-------|----------|-------|----------|---------------|
 | **Sky light** | World offset from map center (profile-driven) | Night: cool blue / Day: neutral white | No flicker | Always on (position/color from profile) |
 | **Window light** | Grid `(1.0, 2.8)` elevated `46px` | Warm orange (1.0, 0.65, 0.25) | Candle-like flicker | Yes — `pointLightOpacity` |
-| **Campfire light** | Grid `(2.5, 4.4)` elevated `25px` | Orange-yellow, modulated by `FireLightEffect` | Breath + wobble + crackle | Yes — `fireOpacity` |
+| **Campfire light** | Grid `(2.5, 4.4)` elevated `25px` | Orange-yellow, modulated by `FireLightEffect` | Breath + wobble + crackle. Radius and intensity scale with `Campfire.lightMult` (varies by fed state + burst envelope). | Yes — `fireOpacity` |
 
 Limits: up to **16 point lights** and **32 occluders** per frame (GLSL array sizes).
 

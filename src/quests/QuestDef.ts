@@ -57,22 +57,22 @@ export function getAllQuestDefs(): QuestDef[] {
 registerQuests(
   {
     id: 'q_dog_bone',
-    title: 'A Hungry Friend',
-    description: 'The dog looks hungry. Find a bone and bring it back.',
+    title: 'Голодный друг',
+    description: 'Пёс выглядит голодным. Покорми его.',
     objectives: [
-      { description: 'Talk to the dog', type: 'talk', target: 'dog_greeting', required: 1 },
-      { description: 'Find a bone', type: 'collect', target: 'bone', required: 1 },
-      { description: 'Give the bone to the dog', type: 'flag', target: 'dog_fed', required: 1 },
+      { description: 'Поговорить с псом', type: 'talk', target: 'dog_greeting', required: 1 },
+      { description: 'Найти кость', type: 'collect', target: 'bone', required: 1 },
+      { description: 'Отдать кость псу', type: 'flag', target: 'dog_fed', required: 1 },
     ],
     completionFlag: 'quest_dog_bone_done',
   },
   {
     id: 'q_gather_sticks',
-    title: 'Gathering Firewood',
-    description: 'The campfire is dying. Find sticks from the snow piles and feed the fire.',
+    title: 'Подкинуть дров в костёр',
+    description: 'Костёр угасает. Собери хворост и подкинь его в огонь.',
     objectives: [
-      { description: 'Collect 2 sticks from the stick piles', type: 'collect', target: 'stick', required: 2 },
-      { description: 'Put the sticks in the campfire', type: 'flag', target: 'sticks_in_fire', required: 1 },
+      { description: 'Собрать хворост', type: 'collect', target: 'stick', required: 2 },
+      { description: 'Бросить хворост в костёр', type: 'flag', target: 'sticks_in_fire', required: 1 },
     ],
     completionFlag: 'quest_gather_sticks_done',
   },
