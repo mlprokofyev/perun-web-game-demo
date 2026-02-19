@@ -148,6 +148,8 @@ export const Config = {
   DOG_WALK_SRC_H: 96,
   DOG_IDLE_SRC_W: 123,   // 492 / 4 frames
   DOG_IDLE_SRC_H: 123,
+  DOG_SLEEP_SRC_W: 120,  // 240 / 2 frames
+  DOG_SLEEP_SRC_H: 80,
   DOG_DRAW_H: 64,        // desired on-screen draw height (reference = idle frame)
 
   /** Dog NPC — shadow casting */
@@ -164,7 +166,7 @@ export const Config = {
   DOG_FADE_DURATION: 2.0, // seconds to go from transparent to opaque
 
   /** NPC interaction */
-  NPC_INTERACT_RADIUS: 1.0,  // grid units — distance within which E key triggers interaction
+  NPC_INTERACT_RADIUS: 0.6,  // grid units — distance within which E key triggers interaction
   NPC_ONBOARD_RADIUS: 0.6,   // grid units — distance at which [E] badge becomes visible
 
   /** Campfire — position and light */

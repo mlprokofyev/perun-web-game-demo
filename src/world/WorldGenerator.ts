@@ -58,6 +58,18 @@ export function generateWorld(): TileMap {
     groundLayer: true,
   });
 
+  // Paper note pinned to house wall (anchorY > 1 pushes sprite above its grid cell)
+  tileMap.addObject({
+    id: 'wall_note',
+    col: 2.1, row: 2.7,
+    assetId: 'obj_note_paper',
+    width: 30, height: 24,
+    anchorY: 5.5,
+    solid: false,
+    depthBias: -100,
+    shadowRadius: 0,
+  });
+
   // 1 house — high-res 890×890 drawn at 600×600 (~2.75 tile footprint)
   // Shadow grid scaled ×1.429 from 420 base
   tileMap.addObject({

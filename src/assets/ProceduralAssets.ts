@@ -785,6 +785,57 @@ function makeItemStoneWorld(): HTMLCanvasElement {
   return c;
 }
 
+function makeNotePaper(): HTMLCanvasElement {
+  const W = 20;
+  const H = 16;
+  const cvs = document.createElement('canvas');
+  cvs.width = W;
+  cvs.height = H;
+  const ctx = cvs.getContext('2d')!;
+
+  // Paper body — slight isometric perspective (narrower at top)
+  ctx.fillStyle = '#f0e4c8';
+  ctx.beginPath();
+  ctx.moveTo(3, 1);
+  ctx.lineTo(17, 1);
+  ctx.lineTo(18, 14);
+  ctx.lineTo(2, 14);
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle paper edge shadow
+  ctx.strokeStyle = 'rgba(120, 90, 50, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Curled corner (bottom-right)
+  ctx.fillStyle = '#e0d4b0';
+  ctx.beginPath();
+  ctx.moveTo(15, 14);
+  ctx.lineTo(18, 14);
+  ctx.lineTo(18, 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120, 90, 50, 0.3)';
+  ctx.stroke();
+
+  // Text lines
+  ctx.fillStyle = 'rgba(80, 55, 30, 0.5)';
+  for (let y = 4; y <= 12; y += 2) {
+    const indent = y === 4 ? 6 : 5;
+    const end = y === 12 ? 12 : 15;
+    ctx.fillRect(indent, y, end - indent, 1);
+  }
+
+  // Small red wax seal dot
+  ctx.fillStyle = 'rgba(160, 50, 40, 0.7)';
+  ctx.beginPath();
+  ctx.arc(10, 13, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  return cvs;
+}
+
 /**
  * Generate and register all procedural placeholder assets.
  * These will be used until real PNG files are placed in /public/assets/.
@@ -831,6 +882,11 @@ export function generateProceduralAssets(): void {
   }
   // Interaction marker
   assetLoader.registerCanvas('interact_marker', makeInteractMarker());
+
+  // Note paper on house wall
+  if (!assetLoader.has('obj_note_paper')) {
+    assetLoader.registerCanvas('obj_note_paper', makeNotePaper());
+  }
 
   if (!assetLoader.has('item_pink_lighter')) {
     assetLoader.registerCanvas('item_pink_lighter', makeItemPinkLighter());

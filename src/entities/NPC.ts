@@ -7,6 +7,7 @@ import { Config } from '../core/Config';
 export enum NPCState {
   WALKING = 'WALKING',
   IDLE = 'IDLE',
+  SLEEPING = 'SLEEPING',
 }
 
 /** Options bag for NPC construction */
@@ -126,9 +127,21 @@ export class NPC extends Entity {
       }
 
       case NPCState.IDLE:
-        // Waiting for interaction — nothing to do.
+        break;
+
+      case NPCState.SLEEPING:
         break;
     }
+  }
+
+  /** Transition to sleeping state. */
+  sleep(): void {
+    this.npcState = NPCState.SLEEPING;
+    this.velocity.vx = 0;
+    this.velocity.vy = 0;
+    this.interactable = false;
+    this.interactLabel = '';
+    this.animController.play('sleep');
   }
 
   /** Compute and set velocity towards the target position. */

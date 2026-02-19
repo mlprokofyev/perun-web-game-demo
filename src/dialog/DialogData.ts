@@ -57,23 +57,36 @@ export const DOG_DIALOG: DialogTree = {
       speaker: 'Пёс',
       text: '*виляет хвостом и смотрит на тебя большими тёплыми глазами*',
       choices: [
-        { text: 'Где ты пропадал? Я начал переживать!', nextNodeId: 'lost' },
+        {
+          text: 'Где ты пропадал? Я начал переживать!',
+          nextNodeId: 'lost',
+          condition: () => !questTracker.isActive('q_dog_bone') && !questTracker.isCompleted('q_dog_bone'),
+        },
         {
           text: 'Вот, погрызи!',
           nextNodeId: 'give_bone',
           tag: 'quest',
-          condition: (flags) => inventory.has('bone') && questTracker.isActive('q_dog_bone'),
+          condition: () => inventory.has('bone') && questTracker.isActive('q_dog_bone'),
           onSelect: (flags) => {
             inventory.remove('bone', inventory.count('bone'));
             flags.set('dog_fed', true);
           },
         },
         {
+          text: 'Ждёшь? Скоро найду, потерпи.',
+          nextNodeId: null,
+          condition: () => questTracker.isActive('q_dog_bone') && !inventory.has('bone'),
+        },
+        {
           text: '(Пёс выглядит довольным.)',
           nextNodeId: 'end_happy_quest',
           condition: (flags) => flags.getBool('dog_fed'),
         },
-        { text: 'Опять ты! Кыш, проваливай!', nextNodeId: 'shoo' },
+        {
+          text: 'Опять ты! Кыш, проваливай!',
+          nextNodeId: 'shoo',
+          condition: () => !questTracker.isActive('q_dog_bone') && !questTracker.isCompleted('q_dog_bone'),
+        },
       ],
     },
     lost: {
@@ -81,7 +94,7 @@ export const DOG_DIALOG: DialogTree = {
       text: '*наклоняет голову и тихонько ворчит, потом тычется носом в твою руку*',
       choices: [
         {
-          text: 'Ладно, не переживай. Найду тебе что-нибудь.',
+          text: 'Ну, не переживай. Найду тебе что-нибудь.',
           nextNodeId: 'quest_accept',
           condition: (flags) => !flags.getBool('quest_dog_bone_done') && !questTracker.isActive('q_dog_bone'),
           onSelect: (_flags) => {
@@ -95,7 +108,14 @@ export const DOG_DIALOG: DialogTree = {
       speaker: 'Пёс',
       text: '*оживляется и принюхивается с надеждой, хвост виляет быстрее*',
       choices: [
-        { text: 'Да найду что-нибудь, подожди!', nextNodeId: null },
+        { text: '[Уйти]', nextNodeId: null },
+      ],
+    },
+    waiting: {
+      speaker: 'Пёс',
+      text: '*нетерпеливо принюхивается, заглядывает в твои руки и разочарованно вздыхает*',
+      choices: [
+        { text: 'Скоро найду, потерпи.', nextNodeId: null },
       ],
     },
     give_bone: {
@@ -107,7 +127,7 @@ export const DOG_DIALOG: DialogTree = {
     },
     end_happy_quest: {
       speaker: 'Пёс',
-      text: '*довольно укладывается, зажав кость между лап, хвост метёт по земле*',
+      text: '*довольно укладывается, радостный, и засыпает перед костром*',
       choices: [
         { text: '[Конец]', nextNodeId: null },
       ],

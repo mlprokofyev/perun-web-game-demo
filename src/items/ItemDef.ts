@@ -14,6 +14,8 @@ export interface ItemDef {
   stackable: boolean;
   /** Maximum stack size (only relevant when stackable) */
   maxStack: number;
+  /** Optional CSS glow color for UI highlights (e.g. 'rgba(230,140,180,0.6)') */
+  glowColor?: string;
 }
 
 // ─── Registry ───────────────────────────────────────────────────
@@ -71,5 +73,6 @@ registerItems(
     iconAssetId: 'item_pink_lighter',
     stackable: false,
     maxStack: 1,
+    glowColor: 'rgba(230, 140, 180, 0.6)',
   },
 );

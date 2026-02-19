@@ -95,10 +95,22 @@ export class InventoryUI {
       const icon = assetLoader.get(def.iconAssetId);
       if (icon) {
         const img = document.createElement('canvas');
-        img.width = 24;
-        img.height = 24;
+        img.width = 32;
+        img.height = 32;
         img.className = 'inventory-icon';
         const ctx = img.getContext('2d')!;
+
+        if (def.glowColor) {
+          const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+          grad.addColorStop(0,   def.glowColor.replace(/[\d.]+\)$/, '0.75)'));
+          grad.addColorStop(0.25, def.glowColor.replace(/[\d.]+\)$/, '0.5)'));
+          grad.addColorStop(0.5, def.glowColor.replace(/[\d.]+\)$/, '0.25)'));
+          grad.addColorStop(0.75, def.glowColor.replace(/[\d.]+\)$/, '0.08)'));
+          grad.addColorStop(1,   'rgba(0,0,0,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, 32, 32);
+        }
+
         ctx.imageSmoothingEnabled = false;
         const sz = assetLoader.getSize(def.iconAssetId);
         const sw = sz?.width ?? 24;
@@ -106,8 +118,8 @@ export class InventoryUI {
         const scale = Math.min(24 / sw, 24 / sh);
         const dw = Math.round(sw * scale);
         const dh = Math.round(sh * scale);
-        const dx = Math.round((24 - dw) / 2);
-        const dy = Math.round((24 - dh) / 2);
+        const dx = Math.round((32 - dw) / 2);
+        const dy = Math.round((32 - dh) / 2);
         ctx.drawImage(icon as CanvasImageSource, 0, 0, sw, sh, dx, dy, dw, dh);
         el.appendChild(img);
       } else {

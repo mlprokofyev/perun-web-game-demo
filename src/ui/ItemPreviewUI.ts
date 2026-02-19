@@ -37,17 +37,31 @@ export class ItemPreviewUI {
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 64, 64);
-    ctx.imageSmoothingEnabled = false; // keep pixel-art crisp
+    canvas.width = 120;
+    canvas.height = 120;
+    ctx.clearRect(0, 0, 120, 120);
+
+    if (item.glowColor) {
+      const grad = ctx.createRadialGradient(60, 60, 0, 60, 60, 60);
+      grad.addColorStop(0,   item.glowColor.replace(/[\d.]+\)$/, '0.8)'));
+      grad.addColorStop(0.2, item.glowColor.replace(/[\d.]+\)$/, '0.6)'));
+      grad.addColorStop(0.45, item.glowColor.replace(/[\d.]+\)$/, '0.35)'));
+      grad.addColorStop(0.7, item.glowColor.replace(/[\d.]+\)$/, '0.12)'));
+      grad.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 120, 120);
+    }
+
+    ctx.imageSmoothingEnabled = false;
     if (iconSrc) {
       const size = assetLoader.getSize(item.iconAssetId);
       const sw = size?.width ?? 24;
       const sh = size?.height ?? 24;
-      const scale = Math.min(64 / sw, 64 / sh);
+      const scale = Math.min(80 / sw, 80 / sh);
       const dw = Math.round(sw * scale);
       const dh = Math.round(sh * scale);
-      const dx = Math.round((64 - dw) / 2);
-      const dy = Math.round((64 - dh) / 2);
+      const dx = Math.round((120 - dw) / 2);
+      const dy = Math.round((120 - dh) / 2);
       ctx.drawImage(iconSrc as CanvasImageSource, 0, 0, sw, sh, dx, dy, dw, dh);
     }
 
