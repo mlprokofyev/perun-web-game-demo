@@ -800,6 +800,9 @@ export class Game {
   _update(dt: number): void {
     if (!this.inventoryUI.visible && !this.itemPreviewUI.visible && !this.noteUI.visible) {
       this.player.handleInput(this.inputManager);
+    } else if (this.player.velocity) {
+      this.player.velocity.vx = 0;
+      this.player.velocity.vy = 0;
     }
     const entities = this.entityManager.getAll();
 
