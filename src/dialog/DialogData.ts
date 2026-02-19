@@ -94,7 +94,7 @@ export const DOG_DIALOG: DialogTree = {
       text: '*наклоняет голову и тихонько ворчит, потом тычется носом в твою руку*',
       choices: [
         {
-          text: 'Ну, не переживай. Найду тебе что-нибудь.',
+          text: 'Ну, хорошо. Найду тебе что-нибудь.',
           nextNodeId: 'quest_accept',
           condition: (flags) => !flags.getBool('quest_dog_bone_done') && !questTracker.isActive('q_dog_bone'),
           onSelect: (_flags) => {

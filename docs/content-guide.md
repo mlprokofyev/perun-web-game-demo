@@ -58,12 +58,12 @@ The game uses a **6x6 isometric grid**. Coordinates are (col, row) -- fractional
          1    |      | HOUSE|      | TREE |      |      |
               |      |(1.5, |      |(3.5, |      |      |
               +------+ 1.5) +------+ 0.7) +------+------+
-         2    | WIND |      | STIK2|      |      |      |
-              |(1,2.8|      |(2.8, |      |      |      |
-              +------+------+ 2.2) +------+------+------+
-         3    | STIKS|      |      |      | TREE2|      |
-              |(0.5, |      |      |      |(4.5, |      |
-              + 3.1) +------+------+------+ 3.1) +------+
+         2    | WIND |  NOTE| STIK2|      |      |      |
+              |(1,2.8| (2.1,|(2.8, |      |      |      |
+              +------+ 2.7) + 2.2) +------+------+------+
+         3    | STIKS| BRRL |      |      | TREE2|      |
+              |(0.5, |(2.0, |      |      |(4.5, |      |
+              + 3.1) + 2.8) +------+------+ 3.1) +------+
          4    |      |      | FIRE |      |      |      |
               |      |      |(2.5, |      |      |      |
               +------+------+ 4.4) +------+------+------+
@@ -83,13 +83,15 @@ The game uses a **6x6 isometric grid**. Coordinates are (col, row) -- fractional
 | Big tree | (3.5, 0.7) | obj_tree_snow_big_1 | 438x600 | 0.9x0.9 | radius 45 |
 | Med tree | (4.5, 3.1) | obj_tree_med_snow | 438x600 | 0.9x0.9 | radius 35 |
 | Pine tree | (0.5, 4.9) | obj_tree_pine_snow | 438x652 | 0.9x0.9 | radius 35 |
+| Barrel | (2.0, 2.8) | obj_barrel_snow (barrel_snow.png) | 80x82 | 0.35x0.35 | radius 22 |
+| Wall note | (2.1, 2.7) | obj_note_paper (procedural) | 30x24 | No | None, depthBias: -100 |
 | Campfire pit | (2.5, 4.4) | obj_campfire (campfire.png) | 140x90 | No (entity has collider) | radius 20, groundLayer |
 | Sticks snow 1 | (0.5, 3.1) | obj_sticks_snow_rotated (sticks_snow_rotated.png) | 130x80 | Yes (0.2×0.15) | None |
 | Sticks snow 2 | (2.8, 2.2) | obj_sticks_snow | 130x80 | Yes (0.1x0.1) | None |
 | Campfire entity | (2.5, 4.4) | campfire_anim (procedural) | 80px tall | Yes (collider 0.15x0.15) | Blob shadow |
 | Window light | (1.0, 2.8) | -- (point light) | -- | -- | -- |
 | Player spawn | (1.1, 2.8) | -- | -- | -- | radius 15 |
-| Dog NPC | (5.7→3.0, 1.2→3.7) | dog_walk_west / dog_idle | 64px tall | Yes (when idle) | -- |
+| Dog NPC | (5.7→3.0, 1.2→3.7) | dog_walk_west / dog_idle / dog_sleeping | 64px tall | Yes (when idle) | -- |
 
 ### Positioning Tips
 
@@ -155,6 +157,7 @@ tileMap.addObject({
   rotation: 0.44,          // rotation in radians (applied at render time)
   groundLayer: false,      // true = render with tiles (always below player)
   shadowHeight: 12,        // override shadow casting height (default = draw height)
+  depthBias: 0,            // negative = render behind nearby entities (e.g., -100 for wall decorations)
 });
 ```
 
@@ -175,6 +178,7 @@ tileMap.addObject({
 | shadowHeight | number | height | Override height for shadow casting |
 | rotation | number | 0 | Render rotation in radians |
 | groundLayer | boolean | false | Render on ground layer (below player) |
+| depthBias | number | 0 | Z-sort offset — negative values push behind entities at the same position |
 
 ### Shadow Configuration
 
@@ -424,8 +428,9 @@ assetLoader.registerCanvas('collectible_my_item', makeCollectibleSprite('#FF0000
 | `iconAssetId` | string | Procedural asset id for 24×24 icon |
 | `stackable` | boolean | Can multiple instances stack in one slot? |
 | `maxStack` | number | Maximum stack size (1 for non-stackable) |
+| `glowColor` | string? | Optional CSS rgba color for radial gradient glow in UI |
 
-**Non-stackable items** (maxStack: 1) trigger the item preview dialog on pickup.
+**Non-stackable items** (maxStack: 1) trigger the item preview dialog on pickup. Items with `glowColor` render a radial gradient halo around their icon in the inventory list and item preview.
 
 ---
 

@@ -27,6 +27,9 @@
     { "id": "dog_idle",                "path": "assets/sprites/characters/dog_idle.png" },
     { "id": "dog_sleeping",            "path": "assets/sprites/characters/dog_sleeping.png" },
 
+    { "id": "obj_barrel_snow",          "path": "assets/sprites/objects/barrel_snow.png" },
+    { "id": "obj_note_paper",           "path": "assets/sprites/objects/paper.png" },
+
     { "id": "item_pink_lighter",       "path": "assets/sprites/objects/lighter.png" },
     { "id": "item_pink_lighter_world", "path": "assets/sprites/objects/lighter.png" }
   ]
