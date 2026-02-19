@@ -53,8 +53,8 @@
 │  UI Layer (all text in Russian)                                 │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
 │  │  DialogUI  │  │ InventoryUI│  │  QuestLogUI /            │ │
-│  │            │  │            │  │  ItemPreviewUI / HUD /   │ │
-│  │            │  │            │  │  ControlsHelpUI          │ │
+│  │            │  │            │  │  ItemPreviewUI / NoteUI / │ │
+│  │            │  │            │  │  HUD / ControlsHelpUI    │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -158,10 +158,10 @@ class Entity {
 | Type | Components | Purpose |
 |------|-----------|---------|
 | **Player** | velocity ✓, collider ✓ (solid), animController ✓, blobShadow ✓ | Player-controlled character |
-| **NPC** | velocity ✓, collider ✓ (solid when idle), animController ✓, blobShadow ✓ | Walk-to behavior with re-aim steering, dialog interaction |
+| **NPC** | velocity ✓, collider ✓ (solid when idle), animController ✓, blobShadow ✓ | Walk-to behavior with re-aim steering, dialog interaction, sleep state |
 | **Campfire** | collider ✓ (solid), animController ✓, blobShadow ✓ | Animated fire with spark particles, burst() for dramatic effects |
 | **Collectible** | — | World item pickup with bob, pickup animation, parabolic launch arc |
-| **InteractableObject** | — | Invisible entity for press-E interactions on static objects (stick piles, campfire) |
+| **InteractableObject** | — | Invisible entity for press-E interactions on static objects (stick piles, campfire, wall note) |
 | **TriggerZone** | — | Invisible pass-through zone firing enter/exit events |
 
 ### Collectible States
@@ -185,8 +185,9 @@ Generic invisible entity for press-E interactions on static world objects. Used 
 
 - **Stick piles** — collect sticks, removes TileMap visual, depletes interactable
 - **Campfire** — dynamically enabled when player has 2 sticks + quest active, consumes sticks, triggers fire burst + secret item
+- **Wall note** — opens parchment overlay (NoteUI), non-depleting (reusable)
 
-Options: `label`, `onInteract` callback, `radius`, `oneShot` flag.
+Options: `label`, `onInteract` callback, `radius`, `markerOffsetY`, `oneShot` flag.
 
 ### EntityManager
 
@@ -264,10 +265,13 @@ interface ItemDef {
   iconAssetId: string;    // Procedural sprite id for UI
   stackable: boolean;
   maxStack: number;
+  glowColor?: string;     // Optional CSS glow for UI highlights
 }
 ```
 
-Built-in items: `stick`, `bone`, `stone`, `ancient_ember`.
+Built-in items: `stick`, `bone`, `stone`, `ancient_ember`, `pink_lighter`.
+
+The `glowColor` property (e.g., `'rgba(230, 140, 180, 0.6)'`) renders a radial gradient halo around the item's icon in the inventory list, item preview, and world collectible sprite.
 
 Items are registered via `registerItems()` and looked up via `getItemDef(id)`.
 
@@ -436,7 +440,9 @@ SPAWN (transparent, non-solid)
   → dialog completes / ESC → DialogState popped → PLAYING
 ```
 
-The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING → IDLE`). Velocity is recomputed each frame to point at the target (seek steering), with an overshoot guard: `arrivalThreshold = max(0.1, stepSize)`.
+The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING → IDLE → SLEEPING`). Velocity is recomputed each frame to point at the target (seek steering), with an overshoot guard: `arrivalThreshold = max(0.1, stepSize)`.
+
+The `sleep()` method transitions an NPC to `NPCState.SLEEPING`: stops movement, disables interaction, and plays the `sleep` animation. Used for the dog after completing the bone quest. A floating "zzz" effect is rendered above sleeping NPCs in `Game.drawDogZzz()`.
 
 ---
 
@@ -569,11 +575,12 @@ All overlay panels are dismissible with `ESC`:
 |-------|-------------|
 | Dialog | `DialogUI` keydown listener (immediate, with `stopPropagation`) |
 | Item Preview | `ItemPreviewUI` keydown listener (delayed 1 frame to avoid pickup key collision) |
+| Note | `NoteUI` keydown listener (Enter/Space/Escape) |
 | Inventory | `Game._update()` — `Action.PAUSE` check |
 | Quest Log | `Game._update()` — `Action.PAUSE` check |
 | Controls Help | `Game._update()` — `Action.PAUSE` check |
 
-Priority when multiple panels are open: Inventory > Quest Log > Controls Help (checked in that order in `_update()`).
+Priority when multiple panels are open: Inventory > Quest Log > Controls Help (checked in that order in `_update()`). Player movement is blocked while any of inventory, item preview, or note overlays are visible.
 
 ---
 
@@ -581,9 +588,28 @@ Priority when multiple panels are open: Inventory > Quest Log > Controls Help (c
 
 `src/states/ItemPreviewState.ts` + `src/ui/ItemPreviewUI.ts` — a special overlay shown when the player discovers a non-stackable item (e.g., Ancient Ember).
 
-- **Trigger**: In `updateCollectibles()`, when a picked-up item has `stackable === false`, an `ItemPreviewState` is pushed.
-- **Display**: Centered overlay with dark scrim, item icon scaled to 64×64 with pixel-art rendering (`imageSmoothingEnabled = false`) and glow drop-shadow, item name, and description.
+- **Trigger**: In `updateCollectibles()`, when a picked-up item has `stackable === false`, an `ItemPreviewState` is pushed. Also opened from the inventory inspect action.
+- **Display**: Centered overlay with dark scrim, item icon scaled to 80×80 within a 120×120 canvas with pixel-art rendering (`imageSmoothingEnabled = false`), radial glow gradient (if `glowColor` set), item name, and description. The "НАЙДЕН НОВЫЙ ПРЕДМЕТ!" header is optional (`showLabel: false` when opened from inventory).
 - **Dismiss**: Enter, Space, or Escape. The state pops itself and the game resumes.
+
+---
+
+## Wall Note Overlay
+
+`src/ui/NoteUI.ts` — a parchment-styled DOM overlay for the developer message pinned to the house wall.
+
+- **Trigger**: Player presses E near the wall note `InteractableObject` at `(2.0, 2.65)`.
+- **Display**: Centered warm-toned parchment with title, body paragraphs, signature, and dismiss hint. CSS animation on entry.
+- **Dismiss**: Enter, Space, or Escape. The overlay hides and the `onClose` callback fires.
+- **Reusable**: The note is not depleted — the player can re-read it any time.
+
+The visual paper sprite is a `WorldObject` in `TileMap` at `(2.1, 2.7)` with `anchorY: 5.5` (elevated to wall height) and `depthBias: -100` (ensures the player always renders in front).
+
+---
+
+## Mobile Web Detection
+
+`src/main.ts` checks for mobile platforms at boot using `navigator.userAgent` patterns and `navigator.maxTouchPoints` heuristics. If detected, a full-screen unsupported-platform message is shown and the game does not load.
 
 ---
 

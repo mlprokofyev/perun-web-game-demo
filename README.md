@@ -56,7 +56,7 @@ npm run preview   # Serve the production build locally
 │   ├── data/assets.json              Asset manifest (loaded at boot)
 │   └── sprites/
 │       ├── characters/               Player + NPC sprite sheets
-│       ├── objects/                   Houses, trees, stones, campfire, sticks
+│       ├── objects/                   Houses, trees, stones, campfire, sticks, barrel, lighter, paper
 │       └── tiles/                    Isometric ground tiles
 ├── src/
 │   ├── main.ts                       Boot: load manifest → init Game
@@ -73,8 +73,11 @@ npm run preview   # Serve the production build locally
 │   ├── entities/
 │   │   ├── Entity.ts                 Base entity (optional components)
 │   │   ├── Player.ts                 Player with input-driven movement
-│   │   ├── NPC.ts                    NPC with walk-to, fade-in, state machine
+│   │   ├── NPC.ts                    NPC with walk-to, fade-in, sleep, state machine
 │   │   ├── Campfire.ts               Campfire entity with spark particles
+│   │   ├── Collectible.ts            World item pickup with animations
+│   │   ├── InteractableObject.ts     Invisible press-E interaction entity
+│   │   ├── TriggerZone.ts            Pass-through zone with enter/exit events
 │   │   ├── Components.ts             Transform, Velocity, Collider
 │   │   └── AnimationController.ts    Sprite sheet animation state machine
 │   ├── systems/
@@ -93,10 +96,23 @@ npm run preview   # Serve the production build locally
 │   │       └── FogEffect.ts          Decoupled vignette + animated fog wisps
 │   ├── dialog/
 │   │   └── DialogData.ts             Dialog tree model + sample dialog
+│   ├── items/
+│   │   ├── ItemDef.ts                Item type registry (glowColor support)
+│   │   └── Inventory.ts              Player inventory singleton
+│   ├── quests/
+│   │   ├── QuestDef.ts               Quest + objective data model
+│   │   └── QuestTracker.ts           Runtime quest state + event listeners
 │   ├── states/
-│   │   └── DialogState.ts            Game state for active dialog
+│   │   ├── DialogState.ts            Game state for active dialog
+│   │   ├── InventoryState.ts         Inventory overlay state
+│   │   ├── QuestLogState.ts          Quest log overlay state
+│   │   └── ItemPreviewState.ts       Item preview overlay state
 │   ├── ui/
 │   │   ├── DialogUI.ts               Bottom-of-screen dialog with choices
+│   │   ├── InventoryUI.ts            Inventory list with keyboard nav + inspect
+│   │   ├── ItemPreviewUI.ts          Full-size item preview with glow
+│   │   ├── QuestLogUI.ts             Quest log overlay
+│   │   ├── NoteUI.ts                 Parchment overlay for wall note
 │   │   ├── ControlsHelpUI.ts         Controls help overlay (H key)
 │   │   └── HUD.ts                    Debug overlay + quest HUD
 │   ├── world/

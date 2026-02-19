@@ -30,8 +30,9 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
                                      │   • Inventory overlay (I)            │
                                      │   • Quest log overlay (J)            │
                                      │   • Quest HUD (top-right, Q toggle)  │
-                                     │   • Item preview overlay             │
-                                     │   • Controls help overlay (H)        │
+│   • Item preview overlay             │
+│   • Note parchment overlay (E)       │
+│   • Controls help overlay (H)        │
                                      │   • Debug panels (U toggle)          │
                                      └──────────────────────────────────────┘
 ```
@@ -56,9 +57,11 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
 
 ### Z-Sorting
 
-Entities and objects share a single depth-sorted render queue. Sort key: `depthOf(col, row, z)` which computes `col + row + z`. The painter's algorithm draws back-to-front so closer objects naturally occlude farther ones.
+Entities and objects share a single depth-sorted render queue. Sort key: `depthOf(col, row, z)` which computes `(col + row) * TILE_HEIGHT + z`. The painter's algorithm draws back-to-front so closer objects naturally occlude farther ones.
 
 Ground-layer objects (`groundLayer: true`) use a depth bias based on their visual bottom edge to sort after all tiles they overlap.
+
+Objects can specify a `depthBias` (number) to manually offset their sort depth. Negative values push the object earlier in the draw order (behind nearby entities). Used for wall decorations like the paper note (`depthBias: -100`) to ensure the player always renders in front regardless of approach angle.
 
 ### Object Rotation
 

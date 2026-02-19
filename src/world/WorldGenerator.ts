@@ -58,13 +58,27 @@ export function generateWorld(): TileMap {
     groundLayer: true,
   });
 
+  // Barrel near house entrance
+  tileMap.addObject({
+    col: 4.2, row: 0.8,
+    assetId: 'obj_barrel_snow',
+    width: 80, height: 82,
+    srcW: 124, srcH: 127,
+    anchorY: 0.88,
+    solid: true,
+    solidCols: 0.35,
+    solidRows: 0.35,
+    shadowRadius: 22,
+  });
+
   // Paper note pinned to house wall (anchorY > 1 pushes sprite above its grid cell)
   tileMap.addObject({
     id: 'wall_note',
-    col: 2.1, row: 2.7,
+    col: 2.0, row: 2.7,
     assetId: 'obj_note_paper',
-    width: 30, height: 24,
-    anchorY: 5.5,
+    width: 30, height: 33,
+    srcW: 51, srcH: 56,
+    anchorY: 4.1,
     solid: false,
     depthBias: -100,
     shadowRadius: 0,
