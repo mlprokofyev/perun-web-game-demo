@@ -9,6 +9,8 @@ export interface InteractableObjectOptions {
   onInteract: () => boolean;
   /** Interaction radius in grid units (default: Config.NPC_INTERACT_RADIUS) */
   radius?: number;
+  /** Extra upward pixel offset for the interaction marker (default 0) */
+  markerOffsetY?: number;
 }
 
 /**
@@ -23,6 +25,9 @@ export class InteractableObject extends Entity {
   /** Grid-unit radius for player proximity check (defaults to NPC_INTERACT_RADIUS). */
   readonly interactRadius: number;
 
+  /** Extra upward pixel offset for the interaction marker. */
+  readonly markerOffsetY: number;
+
   private onInteractCb: () => boolean;
 
   constructor(id: string, opts: InteractableObjectOptions) {
@@ -34,7 +39,8 @@ export class InteractableObject extends Entity {
     this.interactLabel = opts.label;
     this.transform.set(opts.col, opts.row);
     this.onInteractCb = opts.onInteract;
-    this.interactRadius = opts.radius ?? 1.2;
+    this.interactRadius = opts.radius ?? 0.8;
+    this.markerOffsetY = opts.markerOffsetY ?? 0;
   }
 
   /** Execute the interaction callback. */

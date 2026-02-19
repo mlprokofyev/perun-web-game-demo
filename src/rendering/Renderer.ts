@@ -149,6 +149,7 @@ export class Renderer {
     srcW?: number, srcH?: number,
     layer: RenderLayer = RenderLayer.OBJECT,
     rotation: number = 0,
+    depthBias: number = 0,
   ): void {
     const world = isoToScreen(col, row);
     // Ground-layer objects: push depth to the sprite's visual bottom edge so
@@ -160,7 +161,7 @@ export class Renderer {
       layer,
       screenX: world.x,
       screenY: world.y,
-      depth: depthOf(col, row + bottomRowOffset, 0) + 0.01,
+      depth: depthOf(col, row + bottomRowOffset, 0) + 0.01 + depthBias,
       assetId,
       srcX: 0, srcY: 0, srcW: srcW ?? w, srcH: srcH ?? h,
       offsetX: -w / 2,

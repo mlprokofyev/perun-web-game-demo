@@ -37,6 +37,8 @@ export interface WorldObject {
   /** Multiple shadow circles for complex shapes (overrides shadowRadius).
    *  Each entry is { dx, dy } in grid-coordinate offsets from (col, row) + radius in asset px. */
   shadowPoints?: Array<{ dx: number; dy: number; radius: number }>;
+  /** Depth sort bias — negative values push behind entities at the same position. */
+  depthBias?: number;
 }
 
 /**

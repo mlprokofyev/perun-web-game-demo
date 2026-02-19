@@ -7,7 +7,7 @@ import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { AnimationSystem } from '../systems/AnimationSystem';
 import { Entity } from '../entities/Entity';
 import { Player } from '../entities/Player';
-import { NPC } from '../entities/NPC';
+import { NPC, NPCState } from '../entities/NPC';
 import { Campfire } from '../entities/Campfire';
 import { Collectible, CollectibleState } from '../entities/Collectible';
 import { InteractableObject } from '../entities/InteractableObject';
@@ -23,6 +23,7 @@ import { InventoryState } from '../states/InventoryState';
 import { QuestLogState } from '../states/QuestLogState';
 import { ItemPreviewState } from '../states/ItemPreviewState';
 import { ItemPreviewUI } from '../ui/ItemPreviewUI';
+import { NoteUI } from '../ui/NoteUI';
 import { getDialogTree } from '../dialog/DialogData';
 // Side-effect imports: registers sample dialog + items + quests
 import '../dialog/DialogData';
@@ -73,6 +74,7 @@ export class Game {
   private player: Player;
   private campfire: Campfire;
   private campfireFlicker: FireLightEffect;
+  private dogNPC: NPC | null = null;
   private tileMap: TileMap;
   private hud: HUD;
   private dialogUI: DialogUI;
@@ -80,6 +82,7 @@ export class Game {
   private questLogUI: QuestLogUI;
   private controlsHelpUI: ControlsHelpUI;
   private itemPreviewUI: ItemPreviewUI;
+  private noteUI: NoteUI;
   private interactPrompt: HTMLElement;
 
   /** Overlay canvas for interaction markers (above post-processing, below DOM UI) */
@@ -153,6 +156,7 @@ export class Game {
     this.questLogUI = new QuestLogUI();
     this.controlsHelpUI = new ControlsHelpUI();
     this.itemPreviewUI = new ItemPreviewUI();
+    this.noteUI = new NoteUI();
     this.interactPrompt = document.getElementById('interact-prompt')!;
 
     // ── Player ────────────────────────────────────────
@@ -185,6 +189,9 @@ export class Game {
 
     // ── Stick pile interactables ─────────────────────
     this.spawnStickPileInteractables();
+
+    // ── Wall note interactable ─────────────────────
+    this.spawnNoteInteractable();
 
     // ── Quest tracker (auto-starts listening) ────────
     questTracker.init();
@@ -314,9 +321,29 @@ export class Game {
         });
       }
     }
+    // Sleeping animation (single shared anim, not per-direction)
+    const sleepAsset = 'dog_sleeping';
+    if (assetLoader.has(sleepAsset)) {
+      dog.animController.addAnimation('sleep', {
+        assetId: sleepAsset,
+        frameWidth: Config.DOG_SLEEP_SRC_W,
+        frameHeight: Config.DOG_SLEEP_SRC_H,
+        frameCount: frameCountOf(sleepAsset, Config.DOG_SLEEP_SRC_W),
+        frameRate: 2,
+        loop: true,
+      });
+    }
+
     dog.animController.play('walk_south_west');
 
     this.entityManager.add(dog);
+    this.dogNPC = dog;
+
+    eventBus.on('dialog:close', () => {
+      if (questTracker.isCompleted('q_dog_bone') && dog.npcState !== NPCState.SLEEPING) {
+        dog.sleep();
+      }
+    });
   }
 
   // ─── Collectible spawning ────────────────────────────────────
@@ -370,7 +397,7 @@ export class Game {
             const iso = isoToScreen(pile.col, pile.row);
             const screen = this.camera.worldToScreen(iso.x, iso.y);
             this.floatingTexts.push({
-              text: '+1 Палка',
+              text: '+1 Хворост',
               x: screen.x,
               y: screen.y - 30,
               life: 1.2,
@@ -388,6 +415,25 @@ export class Game {
       });
       this.entityManager.add(obj);
     }
+  }
+
+  // ─── Wall note interactable ────────────────────────────────
+
+  private spawnNoteInteractable(): void {
+    const obj = new InteractableObject('interact_wall_note', {
+      col: 2.0,
+      row: 2.65,
+      label: 'прочитать записку',
+      onInteract: () => {
+        this.noteUI.show(() => {
+          this.noteUI.hide();
+        });
+        return true;
+      },
+      radius: 0.6,
+      markerOffsetY: 50,
+    });
+    this.entityManager.add(obj);
   }
 
   // ─── Collectible pickup check ──────────────────────────────
@@ -468,6 +514,53 @@ export class Game {
       ctx.strokeText(ft.text, ft.x, ft.y);
       ctx.fillText(ft.text, ft.x, ft.y);
     }
+    ctx.restore();
+  }
+
+  private drawDogZzz(): void {
+    const dog = this.dogNPC;
+    if (!dog || dog.npcState !== NPCState.SLEEPING) return;
+
+    const iso = isoToScreen(dog.transform.x, dog.transform.y);
+    const screen = this.camera.worldToScreen(iso.x, iso.y);
+    const zoom = this.camera.zoom;
+    const t = this.elapsed;
+
+    const ctx = this.renderer.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    const zChars = [
+      { delay: 0,   size: 11, dx: 6,  rise: 35 },
+      { delay: 0.7, size: 14, dx: 14, rise: 50 },
+      { delay: 1.4, size: 18, dx: 22, rise: 65 },
+    ];
+    const cycleDuration = 2.8;
+
+    for (const z of zChars) {
+      const age = ((t - z.delay) % cycleDuration + cycleDuration) % cycleDuration;
+      const progress = age / cycleDuration;
+      const alpha = progress < 0.15
+        ? progress / 0.15
+        : progress > 0.7
+          ? 1 - (progress - 0.7) / 0.3
+          : 1;
+
+      if (alpha <= 0) continue;
+
+      const baseY = screen.y + Config.DOG_DRAW_H * 0.1 * zoom;
+      const x = screen.x + z.dx * zoom;
+      const y = baseY - z.rise * progress * zoom;
+
+      ctx.globalAlpha = alpha * 0.75;
+      ctx.font = `bold ${Math.round(z.size * 0.8 * zoom)}px monospace`;
+      ctx.fillStyle = '#e8dcc0';
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 2.5;
+      ctx.strokeText('z', x, y);
+      ctx.fillText('z', x, y);
+    }
+
     ctx.restore();
   }
 
@@ -705,7 +798,7 @@ export class Game {
 
   /** @internal — called by PlayingState */
   _update(dt: number): void {
-    if (!this.inventoryUI.visible && !this.itemPreviewUI.visible) {
+    if (!this.inventoryUI.visible && !this.itemPreviewUI.visible && !this.noteUI.visible) {
       this.player.handleInput(this.inputManager);
     }
     const entities = this.entityManager.getAll();
@@ -1010,9 +1103,10 @@ export class Game {
     const scr = cam.worldToScreen(iso.x, iso.y);
     const spriteH = (e.animController?.getCurrentFrame()?.height ?? 0) * e.drawScale;
 
+    const extraOffset = (e instanceof InteractableObject) ? e.markerOffsetY * zoom : 0;
     const defaultOffset = spriteH > 0
       ? (-spriteH + Config.TILE_HEIGHT / 2) * zoom
-      : -30 * zoom;
+      : -30 * zoom - extraOffset;
     const bob = Math.sin(this.elapsed * 3) * 3;
     const markerScale = Math.min(1.6, Math.max(0.6, zoom * 0.8));
 
@@ -1117,6 +1211,7 @@ export class Game {
         obj.srcW, obj.srcH,
         obj.groundLayer ? RenderLayer.GROUND : RenderLayer.OBJECT,
         (obj.rotation ?? 0) * Math.PI / 180,
+        obj.depthBias ?? 0,
       );
     }
 
@@ -1176,6 +1271,9 @@ export class Game {
     // Floating text feedback (pickup "+1" etc.)
     this.drawFloatingTexts();
 
+    // Sleeping dog "zzz"
+    this.drawDogZzz();
+
     // Onboarding move hint
     this.drawOnboardingHint();
 
@@ -1201,7 +1299,7 @@ export class Game {
     // Toggle inventory (edge-triggered)
     // When inventory or item-preview is open, InventoryUI/ItemPreviewUI handle their own keys.
     const iDown = this.inputManager.isActionDown(Action.INVENTORY);
-    if (iDown && !this.inventoryTogglePrev && !this.inventoryUI.visible && !this.itemPreviewUI.visible) {
+    if (iDown && !this.inventoryTogglePrev && !this.inventoryUI.visible && !this.itemPreviewUI.visible && !this.noteUI.visible) {
       this.questLogUI.hide();
       this.controlsHelpUI.hide();
       this.openInventory();
@@ -1236,8 +1334,8 @@ export class Game {
 
     const escDown = this.inputManager.isActionDown(Action.PAUSE);
     if (escDown) {
-      if (this.inventoryUI.visible || this.itemPreviewUI.visible) {
-        // handled by InventoryUI / ItemPreviewUI keydown listeners
+      if (this.inventoryUI.visible || this.itemPreviewUI.visible || this.noteUI.visible) {
+        // handled by InventoryUI / ItemPreviewUI / NoteUI keydown listeners
       } else if (this.questLogUI.visible) {
         this.questLogUI.hide();
       } else if (this.controlsHelpUI.visible) {
