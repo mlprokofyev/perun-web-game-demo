@@ -2,7 +2,7 @@
 
 > Completed work, remaining tasks, and priority matrix.
 >
-> Last updated: 2026-02-19
+> Last updated: 2026-02-20
 
 ---
 
@@ -138,20 +138,137 @@
 
 ---
 
-## Next Up: Phase 4 — Content & Polish
+## Next Up: Phase 4 — Decompose God Object
+
+> **Goal:** Break `Game.ts` from ~1590 lines to ~300-line orchestrator. Highest impact on dev velocity — every future feature becomes cheaper.
+
+| Step | Task | Effort | Notes |
+|------|------|--------|-------|
+| 4.1 | **Extract `InteractionSystem`** — proximity detection, prompt display, interaction dispatch | 0.5 day | Currently `Game.updateInteraction()` + related methods. Move to `systems/InteractionSystem.ts`. |
+| 4.2 | **Extract `RenderOrchestrator`** — tile/entity enqueuing, layer flushing, post-process, markers | 1 day | Move entire `Game._render()` pipeline to `rendering/RenderOrchestrator.ts`. `Game` calls `renderOrchestrator.render(dt)`. |
+| 4.3 | **Extract `SceneBuilder`** — entity spawning and world setup | 0.5 day | `spawnCampfire()`, `spawnDogNPC()`, `spawnCollectibles()`, `spawnInteractables()` → data-driven scene builder. |
+| 4.4 | **Extract `GameplaySystem`** — campfire interaction, collectible pickup, floating text, pending events | 1 day | Game-specific update logic out of `Game._update()` into `systems/GameplaySystem.ts`. |
+| 4.5 | **Move `PlayingState`** — inline class at bottom of `Game.ts` → `states/PlayingState.ts` | 0.25 day | Clean separation. |
+
+Each step is a pure refactor — no behavior changes. Validate by running the game after each extraction.
+
+---
+
+## Phase 5 — Input Provider Abstraction
+
+> **Goal:** Make input source-agnostic. Enables touch support and gamepad without changing any game logic.
+
+| Step | Task | Effort | Notes |
+|------|------|--------|-------|
+| 5.1 | **Define `InputProvider` interface** | 0.25 day | `isActionActive(action): boolean`, `getMovementVector(): {x,y}`, `getPointerPosition(): {x,y}`, `dispose(): void` |
+| 5.2 | **Refactor `InputSystem` → `KeyboardInputProvider`** | 0.5 day | Implement `InputProvider`. Remove duplicated `getMovementVector()`/`isRunning()` from `InputSystem` (already in `InputManager`). |
+| 5.3 | **Refactor `InputManager` to accept `InputProvider[]`** | 0.5 day | Query all providers, OR the results. Single unified API for game code. |
+| 5.4 | **Implement `TouchInputProvider`** | 1.5 days | Virtual joystick (movement), tap zones (interact, inventory, etc.). CSS overlay for touch controls. |
+| 5.5 | **Platform detection → provider selection** | 0.25 day | Replace `isMobile()` block in `main.ts`. Both providers can be active simultaneously (laptop with touchscreen). |
+
+After this phase, `Player.handleInput(inputManager)` remains unchanged. Desktop uses keyboard provider, mobile uses touch provider — transparent to all game code.
+
+---
+
+## Phase 6 — Dependency Injection
+
+> **Goal:** Eliminate module-level singletons. Prerequisite for engine extraction and testability.
+
+| Step | Task | Effort | Notes |
+|------|------|--------|-------|
+| 6.1 | **Create `ServiceContainer`** | 0.5 day | Typed registry for services: `eventBus`, `assetLoader`, `inventory`, `questTracker`, `gameFlags`, `entityManager`, `inputManager`, `camera`. |
+| 6.2 | **Wire container in `Game`** | 0.5 day | `Game` creates container, passes to systems/entities. |
+| 6.3 | **Migrate singleton imports** | 1 day | Replace all direct `import { inventory }`, `import { eventBus }`, etc. with container access. Largest mechanical change. |
+| 6.4 | **Remove pre-built instances** | 0.25 day | Singleton files export class only, not instance. Container owns lifecycle. |
+
+---
+
+## Phase 7 — HTML/CSS Extraction + UI Component Base
+
+> **Goal:** Get `index.html` (844 lines) under control. Composable UI system for engine reuse.
+
+| Step | Task | Effort | Notes |
+|------|------|--------|-------|
+| 7.1 | **Extract CSS** | 0.5 day | Per-component CSS files (or `styles/` directory). Import via Vite. `index.html` drops to ~30 lines. |
+| 7.2 | **Move DOM creation to TypeScript** | 1 day | UI classes fully own their DOM. `index.html` only has `<div id="game-container">` + `<script>`. |
+| 7.3 | **Create `UIComponent` base class** (engine-level) | 0.5 day | Lifecycle: `create()`, `show()`, `hide()`, `dispose()`. Event binding/unbinding. DOM element reference. |
+| 7.4 | **Refactor all UI classes to extend `UIComponent`** | 1 day | `DialogUI`, `InventoryUI`, `QuestLogUI`, `ItemPreviewUI`, `NoteUI`, `ControlsHelpUI`, `HUD`. |
+
+---
+
+## Phase 8 — Engine / Game Directory Split
+
+> **Goal:** Clear boundary between reusable engine and game-specific code. Final structural reorganization before extraction.
+
+Target structure:
+
+```
+src/
+├── engine/                      # Reusable — becomes its own package in Phase 9
+│   ├── core/                    # Game loop, ServiceContainer, Config base
+│   ├── ecs/                     # Entity, Component, EntityManager, System interface
+│   ├── input/                   # InputManager, InputProvider, KeyboardProvider, TouchProvider
+│   ├── rendering/               # Renderer, Camera, PostProcess, IsometricUtils, effects/
+│   ├── physics/                 # PhysicsSystem (generic tile-based collision)
+│   ├── animation/               # AnimationSystem, AnimationController
+│   ├── state/                   # GameStateManager, GameState base
+│   ├── events/                  # EventBus (generic, typed)
+│   ├── assets/                  # AssetLoader, AssetManifest
+│   ├── ui/                      # UIComponent base, UIManager
+│   └── scene/                   # Scene interface, SceneManager
+│
+├── game/                        # Game-specific
+│   ├── entities/                # Player, NPC, Campfire, Collectible...
+│   ├── systems/                 # InteractionSystem, GameplaySystem...
+│   ├── scenes/                  # Scene definitions, world gen, entity spawning
+│   ├── dialog/                  # DialogData, dialog trees
+│   ├── quests/                  # QuestDef, QuestTracker
+│   ├── items/                   # ItemDef, Inventory
+│   ├── ui/                      # DialogUI, InventoryUI, QuestLogUI...
+│   └── config/                  # Game constants, LightingProfiles
+│
+└── main.ts                      # Bootstrap: create engine, load game scene
+```
+
+| Step | Task | Effort | Notes |
+|------|------|--------|-------|
+| 8.1 | **Create directory structure** | 0.25 day | `engine/` and `game/` directories. |
+| 8.2 | **Move engine systems** | 1 day | Systems with zero game-specific imports → `engine/`. |
+| 8.3 | **Define `Scene` interface** | 0.5 day | `load(container): Promise<void>`, `update(dt)`, `render(dt)`, `dispose()`. |
+| 8.4 | **Create `SceneManager`** | 0.5 day | Scene lifecycle, transitions between scenes. |
+| 8.5 | **Convert current game to `ForestScene`** | 1 day | Implements `Scene`, wires game-specific systems. |
+| 8.6 | **Move game code to `game/`** | 0.5 day | Fix all imports. Validate identical behavior. |
+
+---
+
+## Phase 9 — Engine Extraction to Separate Package
+
+> **Goal:** Engine becomes a standalone repo/package. Clone it to start new games.
+
+| Step | Task | Effort | Notes |
+|------|------|--------|-------|
+| 9.1 | **Convert to monorepo** | 0.5 day | `packages/engine/` + `packages/perun-game/`. Vite workspace config. |
+| 9.2 | **Engine `package.json` + public API** | 0.5 day | Exports: `Game`, `Scene`, `InputManager`, `InputProvider`, `Entity`, `Component`, `Renderer`, `Camera`, `EventBus`, `ServiceContainer`, `UIComponent`, etc. |
+| 9.3 | **Game imports engine** | 0.5 day | `import { Game, Scene, InputManager } from '@perun/engine'` |
+| 9.4 | **"New game" template + docs** | 0.5 day | Minimal setup: clone, create scene, run. Document public API surface. |
+
+---
+
+## Phase 10 — Content & Polish
+
+> Previously Phase 4. Content work that benefits from the architectural foundation.
 
 | Task | Effort | Notes |
 |------|--------|-------|
-| **Data-driven maps** — JSON map files with tile grid + object placements + NPC spawns + trigger zones + collectibles | 2 days | Replace WorldGenerator.ts hardcoded positions |
-| **Scene/Map transitions** — load different maps, preserve player state + inventory + quest progress | 1 day | Multi-area game |
-| **Generalize volumetric rendering** — move per-entity shadow/volumetric config into a component (currently hardcoded to player + dog-specific constants) | 2 days | NPC lighting parity for any entity |
-| **UI component system** — structured framework for dialogs, inventory, quest log, menus | 2 days | Reduce DOM boilerplate |
-| **Save/Load** — serialize GameFlags + Inventory + QuestTracker + player position to localStorage | 1 day | Persistence |
-| **More quest content** — additional quest chains, branching outcomes, rewards | 2 days | Validate full quest loop end-to-end |
-| **Item use/combine** — use items from inventory, combine items for crafting | 1.5 days | Extends item system |
-| **Objective markers** — HUD indicators pointing toward active quest objectives | 0.5 day | Reuse interactable marker pattern |
+| **Data-driven maps** — JSON map files with tile grid + object placements + NPC spawns + trigger zones + collectibles | 2 days | Replace WorldGenerator.ts hardcoded positions. Leverages `SceneBuilder` from Phase 4.3. |
+| **Scene/Map transitions** — load different maps, preserve player state + inventory + quest progress | 1 day | Uses `SceneManager` from Phase 8.4. |
+| **Generalize volumetric rendering** — move per-entity shadow/volumetric config into a component | 2 days | NPC lighting parity for any entity. |
+| **Save/Load** — serialize ServiceContainer state to localStorage | 1 day | Cleaner with DI from Phase 6 — serialize container services. |
+| **More quest content** — additional quest chains, branching outcomes, rewards | 2 days | Validate full quest loop end-to-end. |
+| **Item use/combine** — use items from inventory, combine items for crafting | 1.5 days | Extends item system. |
+| **Objective markers** — HUD indicators pointing toward active quest objectives | 0.5 day | Reuse interactable marker pattern. |
 
-## Phase 5: Systems & Performance
+## Phase 11: Systems & Performance
 
 | Task | Effort | Priority |
 |------|--------|----------|
@@ -220,10 +337,42 @@
 | **P1** | depthBias for WorldObject Z-sorting | — | Done |
 | **P1** | InteractableObject markerOffsetY | — | Done |
 | **P1** | Radial gradient glow (inventory + preview) | — | Done |
+| **P1** | **Phase 4: Decompose God Object** | 3.25 days | — |
+| P1 | Extract InteractionSystem | 0.5 day | — |
+| P1 | Extract RenderOrchestrator | 1 day | — |
+| P1 | Extract SceneBuilder | 0.5 day | — |
+| P1 | Extract GameplaySystem | 1 day | — |
+| P1 | Move PlayingState to own file | 0.25 day | — |
+| **P1** | **Phase 5: Input Provider Abstraction** | 3 days | — |
+| P1 | Define InputProvider interface | 0.25 day | — |
+| P1 | Refactor InputSystem → KeyboardInputProvider | 0.5 day | — |
+| P1 | Refactor InputManager for InputProvider[] | 0.5 day | — |
+| P1 | Implement TouchInputProvider | 1.5 days | — |
+| P1 | Platform detection → provider selection | 0.25 day | — |
+| **P1** | **Phase 6: Dependency Injection** | 2.25 days | — |
+| P1 | Create ServiceContainer | 0.5 day | — |
+| P1 | Wire container in Game | 0.5 day | — |
+| P1 | Migrate singleton imports | 1 day | — |
+| P1 | Remove pre-built singleton instances | 0.25 day | — |
+| **P2** | **Phase 7: HTML/CSS Extraction + UI Base** | 3 days | — |
+| P2 | Extract CSS from index.html | 0.5 day | — |
+| P2 | Move DOM creation to TypeScript | 1 day | — |
+| P2 | Create UIComponent base class | 0.5 day | — |
+| P2 | Refactor UI classes to extend UIComponent | 1 day | — |
+| **P2** | **Phase 8: Engine/Game Directory Split** | 3.75 days | — |
+| P2 | Define Scene interface | 0.5 day | — |
+| P2 | Create SceneManager | 0.5 day | — |
+| P2 | Move engine systems to engine/ | 1 day | — |
+| P2 | Convert game to ForestScene | 1 day | — |
+| P2 | Move game code to game/ | 0.5 day | — |
+| **P2** | **Phase 9: Engine Extraction** | 2 days | — |
+| P2 | Convert to monorepo | 0.5 day | — |
+| P2 | Engine package.json + public API | 0.5 day | — |
+| P2 | Game imports engine package | 0.5 day | — |
+| P2 | New game template + docs | 0.5 day | — |
 | **P2** | Data-driven maps (JSON) | 2 days | — |
 | **P2** | Scene/Map transitions | 1 day | — |
 | **P2** | Generalize volumetric rendering | 2 days | — |
-| **P2** | UI component system | 2 days | — |
 | **P2** | Save/Load (localStorage) | 1 day | — |
 | **P2** | More quest content | 2 days | — |
 | **P2** | Item use/combine | 1.5 days | — |
@@ -239,11 +388,11 @@
 
 | File | Lines | Notes |
 |------|-------|-------|
-| core/Game.ts | ~1590 | Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events, profile-driven effects, controls help, debug/quest toggles, ESC-close for all modals, two-pass marker canvas overlay with depth-aware player occlusion. Campfire light radius/intensity driven by `Campfire.lightMult`. All user-facing strings in Russian. NPC shadow hardcoded to dog constants. Interactive inventory (keyboard nav + inspect). Wall note interactable. Dog sleep + zzz animation. Onboarding hint. |
+| core/Game.ts | ~1590 | **God Object — Phase 4 target.** Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events, profile-driven effects, controls help, debug/quest toggles, ESC-close for all modals, two-pass marker canvas overlay with depth-aware player occlusion. Campfire light radius/intensity driven by `Campfire.lightMult`. All user-facing strings in Russian. NPC shadow hardcoded to dog constants. Interactive inventory (keyboard nav + inspect). Wall note interactable. Dog sleep + zzz animation. Onboarding hint. **Planned extractions:** InteractionSystem, RenderOrchestrator, SceneBuilder, GameplaySystem, PlayingState. Target: ~300 lines. |
 | core/GameState.ts | ~108 | State stack with transparent/blocking flags |
 | core/EntityManager.ts | ~71 | Central registry with spatial queries |
 | core/EventBus.ts | ~78 | Fully typed. Quest, inventory, collectible events active. |
-| core/InputManager.ts | ~96 | Action mapping with INVENTORY (I), QUEST_LOG (J), CONTROLS_HELP (H), TOGGLE_DEBUG (U), TOGGLE_QUEST_HUD (Q) |
+| core/InputManager.ts | ~96 | Action mapping with INVENTORY (I), QUEST_LOG (J), CONTROLS_HELP (H), TOGGLE_DEBUG (U), TOGGLE_QUEST_HUD (Q). **Phase 5:** will accept `InputProvider[]` instead of direct `InputSystem` dependency. |
 | core/Config.ts | ~188 | All constants centralized. Campfire + dog params (including DOG_SLEEP_SRC_W/H), NPC onboard radius, dog spawn delay |
 | core/GameFlags.ts | ~90 | Persistent game state singleton (booleans, counters, strings) |
 | core/AssetManifest.ts | ~26 | JSON manifest loader. BASE_URL-aware for sub-path deployment. |
@@ -276,7 +425,7 @@
 | ui/NoteUI.ts | ~67 | Parchment overlay for developer wall note. Dismissible with Enter/Space/Escape. Reusable. |
 | systems/PhysicsSystem.ts | ~92 | Entity-vs-entity collision, overlap escape |
 | systems/AnimationSystem.ts | ~20 | Null-checks optional animController |
-| systems/InputSystem.ts | ~58 | Raw key state |
+| systems/InputSystem.ts | ~58 | **Phase 5 target.** Raw key state. Will be refactored into `KeyboardInputProvider` implementing `InputProvider` interface. `TouchInputProvider` to be added alongside. |
 | rendering/Renderer.ts | ~373 | Z-sort with depthBias, rotation, dynamic bg color, profile-driven effects dispatch |
 | rendering/PostProcessPipeline.ts | ~750 | Lighting, shadows, iso projection, volumetric |
 | rendering/LightingProfile.ts | ~188 | Day/night presets + fog/vignette/snow profiles, lerpProfile() |
@@ -288,5 +437,5 @@
 | world/TileMap.ts | ~117 | WorldObject with rotation, groundLayer, shadowHeight, depthBias, removeObjectById |
 | world/WorldGenerator.ts | ~112 | Campfire, sticks, trees, house, barrel, wall note. Hardcoded positions. depthBias for wall decorations. |
 | assets/ProceduralAssets.ts | ~890 | Campfire anim + item icons + world sprites (stick, bone, stone, ancient_ember, lighter) + interact_marker + note_paper sprites |
-| main.ts | ~73 | Mobile detection + unsupported-platform warning. Loads from manifest. |
-| index.html | ~844 | Dialog, inventory, quest log, item preview, note parchment, controls help overlays. `lang="ru"`, all labels in Russian. Inventory selection styles, note parchment styles with animation. |
+| main.ts | ~73 | Mobile detection + unsupported-platform warning. Loads from manifest. **Phase 5:** will select InputProviders based on platform detection instead of blocking mobile entirely. |
+| index.html | ~844 | **Phase 7 target.** Dialog, inventory, quest log, item preview, note parchment, controls help overlays. `lang="ru"`, all labels in Russian. Inventory selection styles, note parchment styles with animation. **Planned:** Extract CSS to separate files, move all DOM creation to TypeScript. Target: ~30 lines. |
