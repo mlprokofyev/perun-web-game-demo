@@ -9,6 +9,13 @@ export interface InputProvider {
   /** Is the given semantic action currently active (held / pressed)? */
   isActionActive(action: Action): boolean;
 
+  /**
+   * Returns true if the action was pressed since the last consume call,
+   * and clears the flag. Use for one-shot actions (interact, toggle)
+   * instead of polling isActionActive with manual edge detection.
+   */
+  consumeAction(action: Action): boolean;
+
   /** Normalized movement vector (each axis –1 … +1, magnitude ≤ 1). */
   getMovementVector(): { x: number; y: number };
 

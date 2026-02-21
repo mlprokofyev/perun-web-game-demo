@@ -188,6 +188,11 @@ All steps were pure refactors — zero behavior changes. TypeScript compilation 
 | 5b.10 | **Suppress tap highlight** | ✅ Done | `-webkit-tap-highlight-color: transparent` on `#game-container` and all descendants. |
 | 5b.11 | **Back-to-hub button fix** | ✅ Done | Bigger padding/font on touch, `z-index: 60`, excluded from joystick touch capture. |
 | 5b.12 | **Platform-specific hints** | ✅ Done | `.keyboard-hint` / `.touch-hint` CSS classes with `@media (pointer: coarse)` query. All UI overlays show appropriate hint text per platform. |
+| 5b.13 | **Mobile Safari safe-area support** | ✅ Done | `viewport-fit=cover` on meta tag, `100dvh` for `#game-container`, `env(safe-area-inset-bottom)` on joystick, action button, and dialog container. Prevents browser chrome from hiding controls. |
+| 5b.14 | **Robust touch interaction (consumeAction)** | ✅ Done | Replaced polling + manual edge-detect with `consumeAction` pattern across `InputProvider`, `InputManager`, `KeyboardInputProvider` (`justPressed` set), `TouchInputProvider` (`pendingActions` set). `InteractionSystem` uses `consumeAction(Action.INTERACT)` — fixes first-tap misses and inconsistent behavior during simultaneous movement. |
+| 5b.15 | **getBoundingClientRect hit-testing** | ✅ Done | Replaced `document.elementFromPoint()` with `getBoundingClientRect()` in `TouchInputProvider.handleButtonTouchStart()`. Skips hidden buttons (`width === 0`). Fixes unreliable hit detection on mobile Safari for newly-shown elements. |
+| 5b.16 | **Pinch-zoom false-trigger guard** | ✅ Done | `hasTrackedTouch()` helper prevents two-finger pinch detection when one touch belongs to joystick or action button — fixes accidental zoom during simultaneous movement + interaction. |
+| 5b.17 | **Joystick transparency** | ✅ Done | Reduced opacity of joystick base and thumb across idle and running states for less visual intrusion. |
 
 ---
 
@@ -419,7 +424,7 @@ src/
 | File | Lines | Notes |
 |------|-------|-------|
 | core/Game.ts | ~495 | **Phase 4 + 5b.** Thin orchestrator: loop, system wiring, input toggles, day/night profile transitions. Stores `TouchInputProvider` reference for contextual action button. Delegates update to InteractionSystem + GameplaySystem, render to RenderOrchestrator. Event delegation on `#inv-preview` for 🎒/📜 clicks. |
-| systems/InteractionSystem.ts | ~78 | **Phase 4 + 5b.** Proximity detection, interact dispatch, prompt display. Returns typed `InteractionTarget`. Exposes `nearestInteractLabel` for contextual action button. |
+| systems/InteractionSystem.ts | ~77 | **Phase 4 + 5b.** Proximity detection, interact dispatch via `consumeAction(Action.INTERACT)`. Returns typed `InteractionTarget`. Exposes `nearestInteractLabel` for contextual action button. |
 | systems/GameplaySystem.ts | ~400 | **New (Phase 4).** Collectibles, campfire interaction, floating text, pending events, trigger zones, onboarding. Draw methods for sparks, zzz, hint. |
 | rendering/RenderOrchestrator.ts | ~551 | **Phase 4 + 5b.** Full render pipeline: enqueue, flush, post-process lights/occluders/volumetric, two-pass interaction markers. Touch-aware marker rendering: 🤚 emoji (white via canvas filter) with responsive badge sizing via `measureText`. |
 | scenes/ForestSceneSetup.ts | ~240 | **New (Phase 4).** Entity spawning functions for forest scene (player, campfire, dog, collectibles, interactables). |
@@ -427,10 +432,10 @@ src/
 | core/GameState.ts | ~108 | State stack with transparent/blocking flags |
 | core/EntityManager.ts | ~71 | Central registry with spatial queries |
 | core/EventBus.ts | ~78 | Fully typed. Quest, inventory, collectible events active. |
-| core/InputProvider.ts | ~20 | **New (Phase 5).** Interface: `isActionActive`, `getMovementVector`, `getPointerPosition`, `dispose`. |
-| core/InputManager.ts | ~100 | **Refactored (Phase 5).** Aggregates `InputProvider[]` — OR for actions, highest-magnitude for movement, first-valid for pointer. Bindings moved to `KeyboardInputProvider`. |
-| systems/KeyboardInputProvider.ts | ~90 | **New (Phase 5).** Desktop keyboard + mouse wheel + mouse position. Replaces old `InputSystem.ts`. AbortController for cleanup. |
-| systems/TouchInputProvider.ts | ~374 | **Phase 5 + 5b.** Virtual joystick (bottom-left, run zone at 60%), contextual action button (pill-shaped 🤚 + label, bottom-right), pinch-to-zoom. Per-button `touchId` tracking. Overlay `pointerEvents: none` with `auto` on controls only. Haptic feedback. `setInteractVisible()` for dynamic action button. |
+| core/InputProvider.ts | ~20 | **New (Phase 5).** Interface: `isActionActive`, `consumeAction`, `getMovementVector`, `getPointerPosition`, `dispose`. |
+| core/InputManager.ts | ~100 | **Refactored (Phase 5 + 5b).** Aggregates `InputProvider[]` — OR for actions, highest-magnitude for movement, first-valid for pointer. `consumeAction()` iterates all providers. Bindings moved to `KeyboardInputProvider`. |
+| systems/KeyboardInputProvider.ts | ~100 | **New (Phase 5 + 5b).** Desktop keyboard + mouse wheel + mouse position. `justPressed` set for `consumeAction`. Replaces old `InputSystem.ts`. AbortController for cleanup. |
+| systems/TouchInputProvider.ts | ~397 | **Phase 5 + 5b.** Virtual joystick (bottom-left, semi-transparent, run zone at 60%), contextual action button (pill-shaped 🤚 + label, bottom-right), pinch-to-zoom (guarded by `hasTrackedTouch`). Per-button `touchId` tracking. `pendingActions` set for `consumeAction`. `getBoundingClientRect` hit-testing. `env(safe-area-inset-bottom)` positioning. Overlay `pointerEvents: none` with `auto` on controls only. Haptic feedback. `setInteractVisible()` for dynamic action button. |
 | core/Config.ts | ~188 | All constants centralized. Campfire + dog params (including DOG_SLEEP_SRC_W/H), NPC onboard radius, dog spawn delay |
 | core/GameFlags.ts | ~90 | Persistent game state singleton (booleans, counters, strings) |
 | core/AssetManifest.ts | ~26 | JSON manifest loader. BASE_URL-aware for sub-path deployment. |

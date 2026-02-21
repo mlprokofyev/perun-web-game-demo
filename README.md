@@ -82,8 +82,8 @@ npm run preview   # Serve the production build locally
 │   │   ├── GameState.ts              State stack (Playing, Dialog, Inventory, etc.)
 │   │   ├── EntityManager.ts          Central entity registry + spatial queries
 │   │   ├── EventBus.ts               Typed pub/sub event system
-│   │   ├── InputManager.ts           Aggregates InputProvider[] — action queries, movement, pointer
-│   │   ├── InputProvider.ts          InputProvider interface (keyboard, touch, gamepad)
+│   │   ├── InputManager.ts           Aggregates InputProvider[] — action queries, consumeAction, movement, pointer
+│   │   ├── InputProvider.ts          InputProvider interface (isActionActive, consumeAction, movement, pointer)
 │   │   ├── GameFlags.ts              Persistent game state (booleans, counters)
 │   │   ├── AssetLoader.ts            Image loader/cache
 │   │   ├── AssetManifest.ts          JSON manifest loader
@@ -100,10 +100,10 @@ npm run preview   # Serve the production build locally
 │   │   ├── Components.ts             Transform, Velocity, Collider
 │   │   └── AnimationController.ts    Sprite sheet animation state machine
 │   ├── systems/
-│   │   ├── InteractionSystem.ts      Proximity detection, prompt display, interact dispatch
+│   │   ├── InteractionSystem.ts      Proximity detection, interact via consumeAction, prompt display
 │   │   ├── GameplaySystem.ts         Collectibles, campfire, floating text, triggers, onboarding
-│   │   ├── KeyboardInputProvider.ts  Desktop: keyboard + mouse wheel + mouse position
-│   │   ├── TouchInputProvider.ts     Touch: joystick, contextual action, pinch zoom
+│   │   ├── KeyboardInputProvider.ts  Desktop: keyboard + mouse + justPressed tracking for consumeAction
+│   │   ├── TouchInputProvider.ts     Touch: semi-transparent joystick, contextual action, pinch zoom, safe-area support
 │   │   ├── PhysicsSystem.ts          Movement + tile/object/entity collision
 │   │   └── AnimationSystem.ts        Animation state updates
 │   ├── rendering/

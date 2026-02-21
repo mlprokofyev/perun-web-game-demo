@@ -39,6 +39,7 @@ export class TouchInputProvider implements InputProvider {
   private joyCenterY = 0;
 
   private activeActions: Set<Action> = new Set();
+  private pendingActions: Set<Action> = new Set();
   private buttons: ActionButton[] = [];
 
   private pinchDist: number | null = null;
@@ -113,6 +114,10 @@ export class TouchInputProvider implements InputProvider {
     return this.activeActions.has(action);
   }
 
+  consumeAction(action: Action): boolean {
+    return this.pendingActions.delete(action);
+  }
+
   getMovementVector(): { x: number; y: number } {
     return this.joyVec;
   }
@@ -174,7 +179,7 @@ export class TouchInputProvider implements InputProvider {
       }
     }
 
-    if (e.touches.length === 2) {
+    if (e.touches.length === 2 && !this.hasTrackedTouch(e.touches)) {
       this.pinchDist = this.getTouchDistance(e.touches[0], e.touches[1]);
     }
   };
@@ -245,14 +250,14 @@ export class TouchInputProvider implements InputProvider {
     this.joyRunning = mag > JOY_RUN_ZONE;
 
     if (this.joyRunning && !wasRunning) {
-      this.joyBase.style.borderColor = 'rgba(200, 170, 100, 0.5)';
+      this.joyBase.style.borderColor = 'rgba(200, 170, 100, 0.35)';
     } else if (!this.joyRunning && wasRunning) {
-      this.joyBase.style.borderColor = 'rgba(180, 160, 120, 0.25)';
+      this.joyBase.style.borderColor = 'rgba(180, 160, 120, 0.15)';
     }
 
     this.joyThumb.style.background = this.joyRunning
-      ? 'rgba(200, 170, 100, 0.65)'
-      : 'rgba(200, 170, 100, 0.45)';
+      ? 'rgba(200, 170, 100, 0.5)'
+      : 'rgba(200, 170, 100, 0.3)';
   }
 
   private resetJoystick(): void {
@@ -260,8 +265,8 @@ export class TouchInputProvider implements InputProvider {
     this.joyVec = { x: 0, y: 0 };
     this.joyRunning = false;
     this.joyThumb.style.transform = 'translate(0px, 0px)';
-    this.joyThumb.style.background = 'rgba(200, 170, 100, 0.45)';
-    this.joyBase.style.borderColor = 'rgba(180, 160, 120, 0.25)';
+    this.joyThumb.style.background = 'rgba(200, 170, 100, 0.3)';
+    this.joyBase.style.borderColor = 'rgba(180, 160, 120, 0.15)';
   }
 
   // ── Buttons (per-touch-ID tracking) ────────────────────────
@@ -276,6 +281,7 @@ export class TouchInputProvider implements InputProvider {
       ) {
         btn.touchId = touch.identifier;
         this.activeActions.add(btn.action);
+        this.pendingActions.add(btn.action);
         btn.element.style.transform = 'scale(0.9)';
         btn.element.style.opacity = '1';
         if (btn.releaseTimer !== null) {
@@ -313,8 +319,8 @@ export class TouchInputProvider implements InputProvider {
       width: `${JOY_SIZE}px`,
       height: `${JOY_SIZE}px`,
       borderRadius: '50%',
-      background: 'rgba(20, 18, 14, 0.35)',
-      border: '2px solid rgba(180, 160, 120, 0.25)',
+      background: 'rgba(20, 18, 14, 0.18)',
+      border: '2px solid rgba(180, 160, 120, 0.15)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -331,8 +337,8 @@ export class TouchInputProvider implements InputProvider {
       width: `${JOY_THUMB}px`,
       height: `${JOY_THUMB}px`,
       borderRadius: '50%',
-      background: 'rgba(200, 170, 100, 0.45)',
-      border: '2px solid rgba(200, 170, 100, 0.5)',
+      background: 'rgba(200, 170, 100, 0.3)',
+      border: '2px solid rgba(200, 170, 100, 0.35)',
       transition: 'background 0.1s',
       pointerEvents: 'none',
     });
@@ -364,6 +370,18 @@ export class TouchInputProvider implements InputProvider {
 
     this.buttons.push({ action, element: btn, touchId: null, releaseTimer: null });
     return btn;
+  }
+
+  /** True if any of the current touches belongs to joystick or a button. */
+  private hasTrackedTouch(touches: TouchList): boolean {
+    for (let i = 0; i < touches.length; i++) {
+      const id = touches[i].identifier;
+      if (id === this.joyTouchId) return true;
+      for (const btn of this.buttons) {
+        if (btn.touchId === id) return true;
+      }
+    }
+    return false;
   }
 
   private getTouchDistance(a: Touch, b: Touch): number {

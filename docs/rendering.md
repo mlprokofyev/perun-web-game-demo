@@ -55,7 +55,7 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
 | 14 | Post-process | `PostProcessPipeline.ts` | WebGL2 full-screen quad with lighting shader |
 | 15 | Markers | `RenderOrchestrator.ts` | Interaction markers on a separate canvas layer (above post-process, below DOM). Two-pass depth-aware rendering with player silhouette occlusion. Platform-aware badge: `[E]` on desktop, `🤚` emoji (white via canvas filter) on touch. Badge size responsive to text via `measureText`. Badge positioned above arrow with consistent gap. |
 | 16 | DOM overlays | `DialogUI.ts` / `InventoryUI.ts` / `ItemPreviewUI.ts` / `ControlsHelpUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, controls help, debug panels). HUD/debug panels use semi-transparent dark backgrounds for readability in both day and night modes. Touch overlays include ✕ close buttons and tap-to-dismiss behavior. |
-| 17 | Touch overlay | `TouchInputProvider.ts` | DOM layer for virtual joystick (bottom-left) and contextual action button (bottom-right). Root overlay `pointerEvents: none` with `auto` on controls. Above DOM UI (`z-index: 50`). |
+| 17 | Touch overlay | `TouchInputProvider.ts` | DOM layer for semi-transparent virtual joystick (bottom-left) and contextual action button (bottom-right). Safe-area-aware positioning via `env(safe-area-inset-bottom)`. Root overlay `pointerEvents: none` with `auto` on controls. `getBoundingClientRect` hit-testing. Above DOM UI (`z-index: 50`). |
 
 ### Z-Sorting
 
