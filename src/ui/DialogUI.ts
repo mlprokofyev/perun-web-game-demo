@@ -10,11 +10,11 @@ export class DialogUI {
   private speakerEl: HTMLElement;
   private textEl: HTMLElement;
   private choicesEl: HTMLElement;
+  private closeBtn: HTMLElement;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private closeBtnHandler: (() => void) | null = null;
 
-  /** Currently highlighted choice (0-based). */
   private selectedIndex: number = 0;
-  /** Total choices in the current node. */
   private choiceCount: number = 0;
 
   constructor() {
@@ -22,6 +22,7 @@ export class DialogUI {
     this.speakerEl = this.container.querySelector('.dialog-speaker')!;
     this.textEl = this.container.querySelector('.dialog-text')!;
     this.choicesEl = this.container.querySelector('.dialog-choices')!;
+    this.closeBtn = this.container.querySelector('.dialog-close')!;
   }
 
   /**
@@ -30,8 +31,7 @@ export class DialogUI {
    * - `onClose` fires when the player presses ESC to exit the dialog.
    */
   show(node: DialogNode, onChoice: (index: number) => void, onClose: () => void): void {
-    // Clean up any previous listener
-    this.removeKeyListener();
+    this.removeListeners();
 
     this.speakerEl.textContent = node.speaker;
     this.textEl.textContent = node.text;
@@ -58,7 +58,9 @@ export class DialogUI {
 
     this.highlightSelected();
 
-    // Keyboard: ↑/↓ navigate, Enter confirms, ESC closes
+    this.closeBtnHandler = () => onClose();
+    this.closeBtn.addEventListener('click', this.closeBtnHandler);
+
     this.keydownHandler = (e: KeyboardEvent) => {
       switch (e.code) {
         case 'Escape':
@@ -96,10 +98,9 @@ export class DialogUI {
     this.container.style.display = 'flex';
   }
 
-  /** Hide the dialog overlay and clean up listeners. */
   hide(): void {
     this.container.style.display = 'none';
-    this.removeKeyListener();
+    this.removeListeners();
   }
 
   get visible(): boolean {
@@ -114,10 +115,14 @@ export class DialogUI {
     });
   }
 
-  private removeKeyListener(): void {
+  private removeListeners(): void {
     if (this.keydownHandler) {
       window.removeEventListener('keydown', this.keydownHandler);
       this.keydownHandler = null;
+    }
+    if (this.closeBtnHandler) {
+      this.closeBtn.removeEventListener('click', this.closeBtnHandler);
+      this.closeBtnHandler = null;
     }
   }
 

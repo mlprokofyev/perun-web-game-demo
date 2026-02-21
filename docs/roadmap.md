@@ -87,7 +87,7 @@
 | **Inventory system** | `Inventory` singleton: add/remove/has/count, source tracking, emits `inventory:changed` with itemId/count/total. |
 | **Collectible entity** | Extends Entity. States: IDLE (bob), PICKING_UP (scale+fade), LAUNCHING (parabolic arc), DONE. Auto-pickup on proximity. |
 | **InteractableObject entity** | Generic invisible entity for static object interactions (e.g., collect from stick piles, feed campfire). One-shot/repeatable. |
-| **Collectible spawning** | WorldGenerator + Game.ts data-driven placement. Stick piles via InteractableObject (press E); bone/stone via auto-pickup Collectible. |
+| **Collectible spawning** | WorldGenerator + ForestSceneSetup data-driven placement. Stick piles via InteractableObject (press E); bone/stone via auto-pickup Collectible. |
 | **Inventory UI** | HTML overlay toggled with `I` key → edge-triggered in Game._render(). Shows item icons, names, counts. |
 | **Pickup feedback** | Floating text particles (+1, item names). World-to-screen projection, fade + rise animation. |
 | **Quest data model** | `QuestDef` with objectives (collect, flag types). Registry. Two quests: q_gather_sticks, q_dog_bone. |
@@ -99,7 +99,7 @@
 | **Campfire interaction** | Dynamic interactability based on inventory+quest state. Consumes sticks, triggers fire burst, schedules secret item via pending events. |
 | **Secret item emergence** | Ancient Ember: launches from campfire in parabolic arc to random nearby position. Pulsing glow during flight. |
 | **Item preview dialog** | `ItemPreviewState` + `ItemPreviewUI`: centered overlay with item icon (64×64 upscaled), name, description. Triggers on pickup of non-stackable items. Enter/Space/ESC to dismiss. |
-| **Pending events system** | Timer-based callback queue in Game.ts. Used for delayed secret item spawn after fire burst. |
+| **Pending events system** | Timer-based callback queue in GameplaySystem. Used for delayed secret item spawn after fire burst. |
 | **Dog quest fix** | Changed "give bone" objective from `talk`/required:2 to `flag`/`dog_fed`/required:1. Fixed counter display and missing dialog option. Retroactive talk credit on quest accept. |
 | **Bone consumption fix** | Giving bone to dog now removes all bones from inventory (`inventory.remove('bone', inventory.count('bone'))`). |
 | **ESC closes all modals** | Inventory (I) and Quest Log (J) panels now dismissible with ESC, matching Dialog and Item Preview behavior. Hint text updated in UI. |
@@ -138,39 +138,60 @@
 
 ---
 
-## Next Up: Phase 4 — Decompose God Object
+## Phase 4 — Decompose God Object ✅
 
-> **Goal:** Break `Game.ts` from ~1590 lines to ~300-line orchestrator. Highest impact on dev velocity — every future feature becomes cheaper.
+> **Goal:** Break `Game.ts` from ~1590 lines to ~450-line orchestrator. Highest impact on dev velocity — every future feature becomes cheaper.
 
-| Step | Task | Effort | Notes |
-|------|------|--------|-------|
-| 4.1 | **Extract `InteractionSystem`** — proximity detection, prompt display, interaction dispatch | 0.5 day | Currently `Game.updateInteraction()` + related methods. Move to `systems/InteractionSystem.ts`. |
-| 4.2 | **Extract `RenderOrchestrator`** — tile/entity enqueuing, layer flushing, post-process, markers | 1 day | Move entire `Game._render()` pipeline to `rendering/RenderOrchestrator.ts`. `Game` calls `renderOrchestrator.render(dt)`. |
-| 4.3 | **Extract `SceneBuilder`** — entity spawning and world setup | 0.5 day | `spawnCampfire()`, `spawnDogNPC()`, `spawnCollectibles()`, `spawnInteractables()` → data-driven scene builder. |
-| 4.4 | **Extract `GameplaySystem`** — campfire interaction, collectible pickup, floating text, pending events | 1 day | Game-specific update logic out of `Game._update()` into `systems/GameplaySystem.ts`. |
-| 4.5 | **Move `PlayingState`** — inline class at bottom of `Game.ts` → `states/PlayingState.ts` | 0.25 day | Clean separation. |
+| Step | Task | Status | Result |
+|------|------|--------|--------|
+| 4.1 | **Extract `InteractionSystem`** — proximity detection, prompt display, interaction dispatch | ✅ Done | `systems/InteractionSystem.ts` (~75 lines). Returns typed `InteractionTarget` for dispatch. |
+| 4.2 | **Extract `RenderOrchestrator`** — tile/entity enqueuing, layer flushing, post-process, markers | ✅ Done | `rendering/RenderOrchestrator.ts` (~520 lines). Full pipeline with `RenderDeps` + `RenderFrameState` interfaces. |
+| 4.3 | **Extract `ForestSceneSetup`** — entity spawning and world setup | ✅ Done | `scenes/ForestSceneSetup.ts` (~240 lines). Functions for player, campfire, dog NPC, collectibles, interactables. |
+| 4.4 | **Extract `GameplaySystem`** — campfire interaction, collectible pickup, floating text, pending events | ✅ Done | `systems/GameplaySystem.ts` (~400 lines). Both update and draw methods. |
+| 4.5 | **Move `PlayingState`** — inline class at bottom of `Game.ts` → `states/PlayingState.ts` | ✅ Done | `states/PlayingState.ts` (~15 lines). Delegates to `Game._update()` / `Game._render()`. |
 
-Each step is a pure refactor — no behavior changes. Validate by running the game after each extraction.
+All steps were pure refactors — zero behavior changes. TypeScript compilation (`tsc --noEmit`) and linting passed cleanly.
 
 ---
 
-## Phase 5 — Input Provider Abstraction
+## Phase 5 — Input Provider Abstraction ✅
 
 > **Goal:** Make input source-agnostic. Enables touch support and gamepad without changing any game logic.
 
-| Step | Task | Effort | Notes |
-|------|------|--------|-------|
-| 5.1 | **Define `InputProvider` interface** | 0.25 day | `isActionActive(action): boolean`, `getMovementVector(): {x,y}`, `getPointerPosition(): {x,y}`, `dispose(): void` |
-| 5.2 | **Refactor `InputSystem` → `KeyboardInputProvider`** | 0.5 day | Implement `InputProvider`. Remove duplicated `getMovementVector()`/`isRunning()` from `InputSystem` (already in `InputManager`). |
-| 5.3 | **Refactor `InputManager` to accept `InputProvider[]`** | 0.5 day | Query all providers, OR the results. Single unified API for game code. |
-| 5.4 | **Implement `TouchInputProvider`** | 1.5 days | Virtual joystick (movement), tap zones (interact, inventory, etc.). CSS overlay for touch controls. |
-| 5.5 | **Platform detection → provider selection** | 0.25 day | Replace `isMobile()` block in `main.ts`. Both providers can be active simultaneously (laptop with touchscreen). |
+| Step | Task | Status | Result |
+|------|------|--------|--------|
+| 5.1 | **Define `InputProvider` interface** | ✅ Done | `core/InputProvider.ts`. Methods: `isActionActive(action)`, `getMovementVector()`, `getPointerPosition()`, `dispose()`. |
+| 5.2 | **Refactor `InputSystem` → `KeyboardInputProvider`** | ✅ Done | `systems/KeyboardInputProvider.ts`. Keyboard + mouse wheel + mouse position. AbortController cleanup. |
+| 5.3 | **Refactor `InputManager` to accept `InputProvider[]`** | ✅ Done | OR aggregation for actions, highest-magnitude for movement, first-valid for pointer. `dispose()` method. |
+| 5.4 | **Implement `TouchInputProvider`** | ✅ Done | `systems/TouchInputProvider.ts`. Virtual joystick (bottom-left, run zone), action buttons (E, bag, quest, close), pinch-to-zoom. |
+| 5.5 | **Platform detection → provider selection** | ✅ Done | In `Game` constructor. Both providers active simultaneously on laptops with touchscreen. `isMobile()` block removed from `main.ts`. Old `InputSystem.ts` deleted. |
 
-After this phase, `Player.handleInput(inputManager)` remains unchanged. Desktop uses keyboard provider, mobile uses touch provider — transparent to all game code.
+`Player.handleInput(inputManager)` unchanged. Desktop uses keyboard provider, touch devices use touch provider — transparent to all game code. CSS media queries hide keyboard-only hints on touch-only devices.
 
 ---
 
-## Phase 6 — Dependency Injection
+## Phase 5b — Touch UI/UX Polish ✅
+
+> **Goal:** Make the touch experience feel native — fix bugs, add contextual controls, merge redundant UI, refine visual details.
+
+| Step | Task | Status | Result |
+|------|------|--------|--------|
+| 5b.1 | **Fix touch overlay blocking DOM UI** | ✅ Done | Root overlay `pointerEvents: 'none'`, individual controls `pointerEvents: 'auto'`. Joystick listeners moved to `document`. |
+| 5b.2 | **Fix multi-button touch release** | ✅ Done | Per-button `touchId` tracking — releasing one finger no longer releases all buttons. |
+| 5b.3 | **Fix modal close on touch** | ✅ Done | `PAUSE` action cascades through Note → ItemPreview → Inventory → QuestLog → ControlsHelp. Added ✕ close buttons (visible on touch via CSS) to Dialog, Inventory, QuestLog. Tap-to-dismiss for ItemPreview and Note containers. |
+| 5b.4 | **Contextual action button** | ✅ Done | Pill-shaped `🤚 {label}` button (bottom-right) — shown only when near an interactable. Auto-width, `max-width: 200px`, ellipsis overflow. Haptic feedback via `navigator.vibrate`. |
+| 5b.5 | **Merge 🎒/📜 into HUD** | ✅ Done | Removed standalone bag/quest buttons from touch overlay. Integrated 🎒 and 📜 into `#inv-preview` as a single flex row. Items expand leftward. Event delegation in `Game.ts` distinguishes 🎒 (inventory) vs 📜 (quest log) clicks. `#inv-preview` always visible on touch (even when empty). |
+| 5b.6 | **Remove menu/pause button** | ✅ Done | `≡` button removed from touch overlay — served no purpose. |
+| 5b.7 | **Disable onboarding on touch** | ✅ Done | `gameplaySystem.onboardingHintActive = false` when `TouchInputProvider` is present. |
+| 5b.8 | **Touch marker symbol** | ✅ Done | Markers show `🤚` (white via `ctx.filter = 'brightness(0) invert(1)'`) instead of `[E]` on touch. Badge size responsive to text via `ctx.measureText`. Badge always rendered above arrow. |
+| 5b.9 | **Action button symbol** | ✅ Done | Action button prepends white `🤚` via `<span>` with `filter: brightness(0) invert(1)`. `gap: 8px` between symbol and label. |
+| 5b.10 | **Suppress tap highlight** | ✅ Done | `-webkit-tap-highlight-color: transparent` on `#game-container` and all descendants. |
+| 5b.11 | **Back-to-hub button fix** | ✅ Done | Bigger padding/font on touch, `z-index: 60`, excluded from joystick touch capture. |
+| 5b.12 | **Platform-specific hints** | ✅ Done | `.keyboard-hint` / `.touch-hint` CSS classes with `@media (pointer: coarse)` query. All UI overlays show appropriate hint text per platform. |
+
+---
+
+## Next Up: Phase 6 — Dependency Injection
 
 > **Goal:** Eliminate module-level singletons. Prerequisite for engine extraction and testability.
 
@@ -337,18 +358,27 @@ src/
 | **P1** | depthBias for WorldObject Z-sorting | — | Done |
 | **P1** | InteractableObject markerOffsetY | — | Done |
 | **P1** | Radial gradient glow (inventory + preview) | — | Done |
-| **P1** | **Phase 4: Decompose God Object** | 3.25 days | — |
-| P1 | Extract InteractionSystem | 0.5 day | — |
-| P1 | Extract RenderOrchestrator | 1 day | — |
-| P1 | Extract SceneBuilder | 0.5 day | — |
-| P1 | Extract GameplaySystem | 1 day | — |
-| P1 | Move PlayingState to own file | 0.25 day | — |
-| **P1** | **Phase 5: Input Provider Abstraction** | 3 days | — |
-| P1 | Define InputProvider interface | 0.25 day | — |
-| P1 | Refactor InputSystem → KeyboardInputProvider | 0.5 day | — |
-| P1 | Refactor InputManager for InputProvider[] | 0.5 day | — |
-| P1 | Implement TouchInputProvider | 1.5 days | — |
-| P1 | Platform detection → provider selection | 0.25 day | — |
+| **P1** | **Phase 4: Decompose God Object** | 3.25 days | ✅ Done |
+| P1 | Extract InteractionSystem | 0.5 day | ✅ Done |
+| P1 | Extract RenderOrchestrator | 1 day | ✅ Done |
+| P1 | Extract ForestSceneSetup | 0.5 day | ✅ Done |
+| P1 | Extract GameplaySystem | 1 day | ✅ Done |
+| P1 | Move PlayingState to own file | 0.25 day | ✅ Done |
+| **P1** | **Phase 5: Input Provider Abstraction** | 3 days | ✅ Done |
+| P1 | Define InputProvider interface | 0.25 day | ✅ Done |
+| P1 | Refactor InputSystem → KeyboardInputProvider | 0.5 day | ✅ Done |
+| P1 | Refactor InputManager for InputProvider[] | 0.5 day | ✅ Done |
+| P1 | Implement TouchInputProvider | 1.5 days | ✅ Done |
+| P1 | Platform detection → provider selection | 0.25 day | ✅ Done |
+| **P1** | **Phase 5b: Touch UI/UX Polish** | 2 days | ✅ Done |
+| P1 | Fix overlay blocking + multi-touch release | — | ✅ Done |
+| P1 | Modal close on touch (✕ buttons, tap-to-dismiss) | — | ✅ Done |
+| P1 | Contextual action button (🤚 + label) | — | ✅ Done |
+| P1 | Merge 🎒/📜 into HUD | — | ✅ Done |
+| P1 | Touch marker symbol + white color | — | ✅ Done |
+| P1 | Platform-specific hints + suppress tap highlight | — | ✅ Done |
+| P1 | Remove menu button + disable onboarding on touch | — | ✅ Done |
+| P1 | Back-to-hub button fix | — | ✅ Done |
 | **P1** | **Phase 6: Dependency Injection** | 2.25 days | — |
 | P1 | Create ServiceContainer | 0.5 day | — |
 | P1 | Wire container in Game | 0.5 day | — |
@@ -388,11 +418,19 @@ src/
 
 | File | Lines | Notes |
 |------|-------|-------|
-| core/Game.ts | ~1590 | **God Object — Phase 4 target.** Orchestrator. Interaction, collectibles, campfire interaction, item preview, floating text, pending events, profile-driven effects, controls help, debug/quest toggles, ESC-close for all modals, two-pass marker canvas overlay with depth-aware player occlusion. Campfire light radius/intensity driven by `Campfire.lightMult`. All user-facing strings in Russian. NPC shadow hardcoded to dog constants. Interactive inventory (keyboard nav + inspect). Wall note interactable. Dog sleep + zzz animation. Onboarding hint. **Planned extractions:** InteractionSystem, RenderOrchestrator, SceneBuilder, GameplaySystem, PlayingState. Target: ~300 lines. |
+| core/Game.ts | ~495 | **Phase 4 + 5b.** Thin orchestrator: loop, system wiring, input toggles, day/night profile transitions. Stores `TouchInputProvider` reference for contextual action button. Delegates update to InteractionSystem + GameplaySystem, render to RenderOrchestrator. Event delegation on `#inv-preview` for 🎒/📜 clicks. |
+| systems/InteractionSystem.ts | ~78 | **Phase 4 + 5b.** Proximity detection, interact dispatch, prompt display. Returns typed `InteractionTarget`. Exposes `nearestInteractLabel` for contextual action button. |
+| systems/GameplaySystem.ts | ~400 | **New (Phase 4).** Collectibles, campfire interaction, floating text, pending events, trigger zones, onboarding. Draw methods for sparks, zzz, hint. |
+| rendering/RenderOrchestrator.ts | ~551 | **Phase 4 + 5b.** Full render pipeline: enqueue, flush, post-process lights/occluders/volumetric, two-pass interaction markers. Touch-aware marker rendering: 🤚 emoji (white via canvas filter) with responsive badge sizing via `measureText`. |
+| scenes/ForestSceneSetup.ts | ~240 | **New (Phase 4).** Entity spawning functions for forest scene (player, campfire, dog, collectibles, interactables). |
+| states/PlayingState.ts | ~15 | **New (Phase 4).** Default game state delegating to Game._update/_render. |
 | core/GameState.ts | ~108 | State stack with transparent/blocking flags |
 | core/EntityManager.ts | ~71 | Central registry with spatial queries |
 | core/EventBus.ts | ~78 | Fully typed. Quest, inventory, collectible events active. |
-| core/InputManager.ts | ~96 | Action mapping with INVENTORY (I), QUEST_LOG (J), CONTROLS_HELP (H), TOGGLE_DEBUG (U), TOGGLE_QUEST_HUD (Q). **Phase 5:** will accept `InputProvider[]` instead of direct `InputSystem` dependency. |
+| core/InputProvider.ts | ~20 | **New (Phase 5).** Interface: `isActionActive`, `getMovementVector`, `getPointerPosition`, `dispose`. |
+| core/InputManager.ts | ~100 | **Refactored (Phase 5).** Aggregates `InputProvider[]` — OR for actions, highest-magnitude for movement, first-valid for pointer. Bindings moved to `KeyboardInputProvider`. |
+| systems/KeyboardInputProvider.ts | ~90 | **New (Phase 5).** Desktop keyboard + mouse wheel + mouse position. Replaces old `InputSystem.ts`. AbortController for cleanup. |
+| systems/TouchInputProvider.ts | ~374 | **Phase 5 + 5b.** Virtual joystick (bottom-left, run zone at 60%), contextual action button (pill-shaped 🤚 + label, bottom-right), pinch-to-zoom. Per-button `touchId` tracking. Overlay `pointerEvents: none` with `auto` on controls only. Haptic feedback. `setInteractVisible()` for dynamic action button. |
 | core/Config.ts | ~188 | All constants centralized. Campfire + dog params (including DOG_SLEEP_SRC_W/H), NPC onboard radius, dog spawn delay |
 | core/GameFlags.ts | ~90 | Persistent game state singleton (booleans, counters, strings) |
 | core/AssetManifest.ts | ~26 | JSON manifest loader. BASE_URL-aware for sub-path deployment. |
@@ -416,16 +454,16 @@ src/
 | states/InventoryState.ts | ~29 | Transparent overlay for inventory |
 | states/QuestLogState.ts | ~29 | Transparent overlay for quest log |
 | states/ItemPreviewState.ts | ~43 | Transparent overlay for item discovery dialog |
-| ui/DialogUI.ts | ~127 | Arrow/Enter/ESC navigation, mouse, hints |
+| ui/DialogUI.ts | ~141 | **Phase 5b.** Arrow/Enter/ESC navigation, mouse, hints. ✕ close button (visible on touch). Platform-specific hint text (keyboard-hint / touch-hint). |
 | ui/ControlsHelpUI.ts | ~53 | HTML overlay listing all controls by category. Toggle with H key. All text in Russian. |
-| ui/HUD.ts | ~123 | Debug panels (toggleable with U), quest HUD tracker (toggleable with Q) |
-| ui/InventoryUI.ts | ~213 | HTML overlay: item icons with glow gradients, names, counts. Keyboard navigation (↑/↓/W/S), inspect action (Enter/Space). Labels in Russian. |
-| ui/QuestLogUI.ts | ~114 | HTML overlay: active/completed quests + objectives. Labels in Russian. |
-| ui/ItemPreviewUI.ts | ~95 | HTML overlay: item preview with 120×120 canvas, radial glow gradient, optional header. Labels in Russian. |
-| ui/NoteUI.ts | ~67 | Parchment overlay for developer wall note. Dismissible with Enter/Space/Escape. Reusable. |
+| ui/HUD.ts | ~217 | **Phase 5b.** Debug panels (toggleable with U), quest HUD tracker (toggleable with Q). `updateInvPreview()` renders 🎒 + 📜 buttons inline with item slots as a flex row on touch. Always visible on touch (even when empty). |
+| ui/InventoryUI.ts | ~228 | **Phase 5b.** HTML overlay: item icons with glow gradients, names, counts. Keyboard navigation (↑/↓/W/S), inspect action (Enter/Space). ✕ close button, tap-on-slot for touch. Labels in Russian. |
+| ui/QuestLogUI.ts | ~120 | **Phase 5b.** HTML overlay: active/completed quests + objectives. ✕ close button for touch. Labels in Russian. |
+| ui/ItemPreviewUI.ts | ~115 | **Phase 5b.** HTML overlay: item preview with 120×120 canvas, radial glow gradient, optional header. Tap-to-dismiss on touch. Labels in Russian. |
+| ui/NoteUI.ts | ~77 | **Phase 5b.** Parchment overlay for developer wall note. Tap-to-dismiss on touch. Reusable. |
 | systems/PhysicsSystem.ts | ~92 | Entity-vs-entity collision, overlap escape |
 | systems/AnimationSystem.ts | ~20 | Null-checks optional animController |
-| systems/InputSystem.ts | ~58 | **Phase 5 target.** Raw key state. Will be refactored into `KeyboardInputProvider` implementing `InputProvider` interface. `TouchInputProvider` to be added alongside. |
+| ~~systems/InputSystem.ts~~ | — | **Deleted (Phase 5).** Replaced by `KeyboardInputProvider`. |
 | rendering/Renderer.ts | ~373 | Z-sort with depthBias, rotation, dynamic bg color, profile-driven effects dispatch |
 | rendering/PostProcessPipeline.ts | ~750 | Lighting, shadows, iso projection, volumetric |
 | rendering/LightingProfile.ts | ~188 | Day/night presets + fog/vignette/snow profiles, lerpProfile() |
@@ -437,5 +475,5 @@ src/
 | world/TileMap.ts | ~117 | WorldObject with rotation, groundLayer, shadowHeight, depthBias, removeObjectById |
 | world/WorldGenerator.ts | ~112 | Campfire, sticks, trees, house, barrel, wall note. Hardcoded positions. depthBias for wall decorations. |
 | assets/ProceduralAssets.ts | ~890 | Campfire anim + item icons + world sprites (stick, bone, stone, ancient_ember, lighter) + interact_marker + note_paper sprites |
-| main.ts | ~73 | Mobile detection + unsupported-platform warning. Loads from manifest. **Phase 5:** will select InputProviders based on platform detection instead of blocking mobile entirely. |
-| index.html | ~844 | **Phase 7 target.** Dialog, inventory, quest log, item preview, note parchment, controls help overlays. `lang="ru"`, all labels in Russian. Inventory selection styles, note parchment styles with animation. **Planned:** Extract CSS to separate files, move all DOM creation to TypeScript. Target: ~30 lines. |
+| main.ts | ~43 | **Updated (Phase 5).** Removed `isMobile()` block and mobile warning. Boot sequence only: procedural assets → manifest → world → Game. Platform detection moved to `Game` constructor. |
+| index.html | ~949 | **Phase 5b + 7 target.** Dialog, inventory, quest log, item preview, note parchment, controls help overlays. `lang="ru"`, all labels in Russian. Touch-specific CSS: `keyboard-hint`/`touch-hint` classes, `overlay-close` ✕ buttons, `#inv-preview` flex layout with 🎒/📜, `-webkit-tap-highlight-color: transparent`, `#back-to-hub` touch sizing. **Planned:** Extract CSS to separate files, move all DOM creation to TypeScript. Target: ~30 lines. |

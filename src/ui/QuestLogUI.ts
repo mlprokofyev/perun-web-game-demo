@@ -16,10 +16,13 @@ export class QuestLogUI {
       container = document.createElement('div');
       container.id = 'questlog-container';
       container.innerHTML = `
-        <div class="questlog-box">
+        <div class="questlog-box" style="position:relative">
+          <button class="overlay-close" aria-label="Закрыть">✕</button>
           <div class="questlog-title">ЖУРНАЛ ЗАДАНИЙ</div>
           <div class="questlog-content"></div>
-          <div class="questlog-hint"><span class="key">J</span> / <span class="key">ESC</span> закрыть</div>
+          <div class="questlog-hint">
+            <span class="keyboard-hint"><span class="key">J</span> / <span class="key">ESC</span> закрыть</span>
+          </div>
         </div>
       `;
       document.getElementById('game-container')!.appendChild(container);
@@ -27,6 +30,9 @@ export class QuestLogUI {
     this.container = container;
     this.container.style.display = 'none';
     this.contentEl = container.querySelector('.questlog-content')!;
+
+    const closeBtn = container.querySelector('.overlay-close')!;
+    closeBtn.addEventListener('click', () => this.hide());
   }
 
   show(): void {

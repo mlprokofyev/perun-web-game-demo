@@ -10,13 +10,27 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Browser (Client-Side)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│  Game Application Layer                                         │
+│  Game Orchestration Layer                                       │
 │  ┌────────────┐  ┌────────────────┐  ┌───────────────────────┐ │
-│  │  Game.ts   │  │ GameState      │  │  DialogState /        │ │
-│  │  (loop)    │  │ Manager        │  │  InventoryState /     │ │
-│  │            │  │                │  │  QuestLogState /      │ │
+│  │  Game.ts   │  │ GameState      │  │  PlayingState /       │ │
+│  │  (loop,    │  │ Manager        │  │  DialogState /        │ │
+│  │  wiring,   │  │                │  │  InventoryState /     │ │
+│  │  toggles)  │  │                │  │  QuestLogState /      │ │
 │  │            │  │                │  │  ItemPreviewState     │ │
 │  └────────────┘  └────────────────┘  └───────────────────────┘ │
+│                                                                 │
+│  Gameplay Systems Layer                                         │
+│  ┌──────────────────┐  ┌──────────────────┐                   │
+│  │ InteractionSystem│  │ GameplaySystem   │                   │
+│  │ (proximity,      │  │ (collectibles,   │                   │
+│  │  prompt, E-key)  │  │  campfire, text, │                   │
+│  │                  │  │  triggers, zzz)  │                   │
+│  └──────────────────┘  └──────────────────┘                   │
+│                                                                 │
+│  Scene Layer                                                    │
+│  ┌──────────────────────────────────────────────┐              │
+│  │ ForestSceneSetup (entity spawning, anims)    │              │
+│  └──────────────────────────────────────────────┘              │
 │                                                                 │
 │  Item & Quest Layer                                             │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
@@ -28,18 +42,23 @@
 │  └────────────┘                                                │
 │                                                                 │
 │  Game Engine Layer                                              │
+│  ┌──────────────────┐  ┌────────────┐  ┌────────────────────┐ │
+│  │ RenderOrchestrator│  │  Physics   │  │  Animation System │ │
+│  │ (pipeline,        │  │  System    │  │                   │ │
+│  │  post-process,    │  │            │  │                   │ │
+│  │  markers)         │  │            │  │                   │ │
+│  └──────────────────┘  └────────────┘  └────────────────────┘ │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
-│  │ Renderer   │  │  Physics   │  │  Animation System        │ │
-│  │ (Canvas2D) │  │  System    │  │                          │ │
+│  │ Renderer   │  │  PostProc  │  │  Effects (Snow, Fog,     │ │
+│  │ (Canvas2D) │  │  (WebGL2)  │  │  FireLight)              │ │
 │  └────────────┘  └────────────┘  └──────────────────────────┘ │
-│  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
-│  │  Input     │  │  PostProc  │  │  Effects (Snow, Fog,     │ │
-│  │  Manager   │  │  (WebGL2)  │  │  FireLight)              │ │
-│  └────────────┘  └────────────┘  └──────────────────────────┘ │
-│  ┌────────────┐                                                │
-│  │  Lighting  │  ← Day/night profiles, smooth transitions      │
-│  │  Profile   │                                                │
-│  └────────────┘                                                │
+│  ┌────────────────────────────────┐  ┌────────────────────────┐ │
+│  │  InputManager (aggregator)    │  │  Lighting Profile      │ │
+│  │  ┌──────────┐ ┌────────────┐ │  │  ← Day/night presets   │ │
+│  │  │ Keyboard │ │   Touch    │ │  │                        │ │
+│  │  │ Provider │ │  Provider  │ │  │                        │ │
+│  │  └──────────┘ └────────────┘ │  └────────────────────────┘ │
+│  └────────────────────────────────┘                            │
 │                                                                 │
 │  Core Systems Layer                                             │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐ │
@@ -64,39 +83,54 @@
 ## Data Flow
 
 ```
-User Input → InputSystem → InputManager (action mapping)
+User Input → KeyboardInputProvider / TouchInputProvider
+                          ↓
+                    InputManager (aggregation)
+                          ↓
+                    Player.handleInput()
                                 ↓
-                          Player.handleInput()
+                    ┌── Game._update() ──────────────────────────────────┐
+                    │                                                     │
+                    │  PhysicsSystem.update()                             │
+                    │    ├─ Tile walkability                              │
+                    │    ├─ Object collision                              │
+                    │    └─ Entity-vs-entity collision                    │
+                    │                                                     │
+                    │  NPC.update() (re-aim steering, fade-in)            │
+                    │  Campfire.updateSparks()                            │
+                    │  AnimationSystem.update()                           │
+                    │                                                     │
+                    │  GameplaySystem                                     │
+                    │    ├─ updateCampfireInteractable()                  │
+                    │    ├─ updateCollectibles() — auto-pickup            │
+                    │    ├─ updateTriggerZones() — enter/exit events      │
+                    │    ├─ updatePendingEvents() — timed callbacks       │
+                    │    └─ updateFloatingTexts()                         │
+                    │                                                     │
+                    │  InteractionSystem.update()                         │
+                    │    → returns InteractionTarget (npc/object/campfire)│
+                    │    → Game dispatches: openDialog / interact / etc.  │
+                    │                                                     │
+                    └─────────────────────────────────────────────────────┘
                                 ↓
-                          PhysicsSystem.update()
-                            ├─ Tile walkability
-                            ├─ Object collision
-                            └─ Entity-vs-entity collision
+                    ┌── Game._render() ──────────────────────────────────┐
+                    │                                                     │
+                    │  handleInputToggles() — snow, lighting, UI panels   │
+                    │  updateProfileTransition() — day/night lerp         │
+                    │  applyLightingProfile() → PostProcess + Renderer    │
+                    │                                                     │
+                    │  RenderOrchestrator.render()                        │
+                    │    ├─ Renderer.enqueue() → Z-sort → Canvas draw     │
+                    │    ├─ GameplaySystem.drawCampfireSparks()           │
+                    │    ├─ GameplaySystem.drawFloatingTexts()            │
+                    │    ├─ GameplaySystem.drawDogZzz()                   │
+                    │    ├─ GameplaySystem.drawOnboardingHint()           │
+                    │    ├─ PostProcessPipeline.render() (WebGL2)         │
+                    │    └─ drawInteractMarkers() (marker canvas)         │
+                    │                                                     │
+                    └─────────────────────────────────────────────────────┘
                                 ↓
-                          AnimationSystem.update()
-                                ↓
-                          NPC.update() (re-aim steering, fade-in)
-                          Campfire.updateSparks()
-                          Collectible.update() (bob, pickup anim, launch arc)
-                                ↓
-                          updateCollectibles() — auto-pickup, item preview trigger
-                          updateInteraction() — Press E dispatch
-                          updateCampfireInteractable() — dynamic enable/disable
-                          updateTriggerZones() — enter/exit events
-                          updatePendingEvents() — timed callbacks
-                                ↓
-                          Toggle checks (snow, day/night, lighting, inventory, quest log)
-                                ↓
-                          applyLightingProfile() → PostProcess + Renderer
-                                ↓
-                          Renderer.enqueue() → Z-sort → Canvas draw
-                          Floating text particles (world-to-screen)
-                                ↓
-                          PostProcessPipeline.render() (WebGL2 lighting)
-                                ↓
-                          Marker canvas overlay (above post-process, below DOM)
-                                ↓
-                          DOM overlays (dialog, inventory, quest log, item preview, HUD)
+                          DOM overlays (dialog, inventory, quest log, HUD)
 ```
 
 ---
@@ -227,7 +261,7 @@ Each state defines:
 
 | State | Transparent | Blocks Update | Purpose |
 |-------|-------------|---------------|---------|
-| `PlayingState` | No | No | Main gameplay — delegates to `Game._update()` / `Game._render()` |
+| `PlayingState` | No | No | Main gameplay — delegates to `Game._update()` / `Game._render()`. Defined in `states/PlayingState.ts`. |
 | `DialogState` | Yes | Yes | Displays dialog UI, pauses game logic, handles choice navigation |
 | `InventoryState` | Yes | Yes | Displays inventory UI overlay, toggled with I key |
 | `QuestLogState` | Yes | Yes | Displays quest log overlay, toggled with J key |
@@ -377,34 +411,78 @@ To add a new event: add a key + payload type to `GameEvents` in `src/core/EventB
 
 ## Input System
 
-Two layers:
+Three layers:
 
-1. **InputSystem** (`src/systems/InputSystem.ts`) — Raw keyboard/mouse state tracking. Captures `keydown`/`keyup`/`mousemove`/`wheel` events.
+```
+InputProvider (interface)
+  ├─ KeyboardInputProvider  ← desktop: keyboard + mouse wheel + mouse
+  └─ TouchInputProvider     ← touch: virtual joystick + buttons + pinch zoom
+        ↓
+InputManager (aggregator)
+  → isActionDown(action)     — OR across all providers
+  → getMovementVector()      — highest-magnitude provider wins
+  → getMouseScreen()         — first non-zero pointer
+  → isRunning()              — shorthand for RUN action
+```
 
-2. **InputManager** (`src/core/InputManager.ts`) — Maps raw key codes to semantic `Action` enums. Game code queries `InputManager`, never raw key codes.
+1. **InputProvider** (`src/core/InputProvider.ts`) — Interface that all input sources implement: `isActionActive(action)`, `getMovementVector()`, `getPointerPosition()`, `dispose()`.
+
+2. **KeyboardInputProvider** (`src/systems/KeyboardInputProvider.ts`) — Desktop input. Tracks `keydown`/`keyup`/`mousemove`/`wheel` events. Maps `Action` enums to key codes via `KeyBindings`. Uses `AbortController` for clean disposal.
+
+3. **TouchInputProvider** (`src/systems/TouchInputProvider.ts`) — Touch input. Virtual joystick (bottom-left, 130px, run zone at 60% radius, border color feedback when running). Contextual action button (bottom-right, pill-shaped `🤚 {label}`, shown only near interactables via `setInteractVisible()`). Pinch-to-zoom. DOM overlay with `pointerEvents: 'none'` on root, `'auto'` on individual controls. Per-button `touchId` tracking. Haptic feedback (`navigator.vibrate`). The 🎒/📜 buttons are part of the HUD (not the touch overlay).
+
+4. **InputManager** (`src/core/InputManager.ts`) — Aggregates `InputProvider[]`. Game code queries `InputManager` only — never raw providers.
+
+### Platform Detection
+
+In `Game` constructor, providers are selected based on device capabilities:
+
+- **Desktop** (`!hasTouch || hasFinePointer`): `KeyboardInputProvider` created
+- **Touch** (`hasTouch`): `TouchInputProvider` created
+- **Hybrid** (laptop with touchscreen): both providers active simultaneously
 
 ### Actions
 
-| Action | Default Keys | Purpose |
-|--------|-------------|---------|
-| `MOVE_UP` | `W`, `↑` | Movement |
-| `MOVE_DOWN` | `S`, `↓` | Movement |
-| `MOVE_LEFT` | `A`, `←` | Movement |
-| `MOVE_RIGHT` | `D`, `→` | Movement |
-| `RUN` | `Shift` | Sprint modifier |
-| `INTERACT` | `E` | Talk to NPC / interact with objects |
-| `TOGGLE_LIGHT` | `L` | Toggle post-processing |
-| `TOGGLE_SNOW` | `N` | Toggle snowfall |
-| `TOGGLE_TIME` | `T` | Toggle day/night mode |
-| `DEBUG_GRID` | `G` | Show debug grid |
-| `PAUSE` | `Escape` | Close any open overlay (dialog, inventory, quest log, controls help) |
-| `INVENTORY` | `I` | Toggle inventory overlay |
-| `QUEST_LOG` | `J` | Toggle quest log overlay |
-| `CONTROLS_HELP` | `H` | Toggle controls help overlay |
-| `TOGGLE_DEBUG` | `U` | Toggle debug info panels |
-| `TOGGLE_QUEST_HUD` | `Q` | Toggle quest HUD tracker |
+| Action | Keyboard | Touch | Purpose |
+|--------|----------|-------|---------|
+| `MOVE_*` | `WASD` / Arrows | Virtual joystick | Movement |
+| `RUN` | `Shift` | Joystick outer zone (>60% radius) | Sprint modifier |
+| `INTERACT` | `E` | 🤚 action button (contextual, bottom-right) | Talk to NPC / interact |
+| `INVENTORY` | `I` | 🎒 button (HUD, top-right) | Toggle inventory |
+| `QUEST_LOG` | `J` | 📜 button (HUD, top-right) | Toggle quest log |
+| `PAUSE` | `Escape` | ✕ close button (on overlays) | Close overlays |
+| `TOGGLE_LIGHT` | `L` | — | Toggle post-processing |
+| `TOGGLE_SNOW` | `N` | — | Toggle snowfall |
+| `TOGGLE_TIME` | `T` | — | Toggle day/night mode |
+| `DEBUG_GRID` | `G` | — | Show debug grid |
+| `CONTROLS_HELP` | `H` | — | Toggle controls help |
+| `TOGGLE_DEBUG` | `U` | — | Toggle debug panels |
+| `TOGGLE_QUEST_HUD` | `Q` | — | Toggle quest HUD |
+| Zoom | Mouse wheel | Pinch | Camera zoom |
 
-Bindings can be changed at runtime via `inputManager.rebind(Action, codes[])`.
+Keyboard bindings can be changed at runtime via `keyboardProvider.rebind(Action, codes[])`.
+
+### Touch Controls Layout
+
+```
+┌──────────────────────────────────────────┐
+│                          [quest HUD]     │
+│                      [item] [🎒] [📜]    │  ← #inv-preview (HUD)
+│                                          │
+│                                          │
+│                                          │
+│  ┌───────┐                               │
+│  │   ○   │              [🤚 action name] │  ← contextual, hidden by default
+│  └───────┘                               │
+└──────────────────────────────────────────┘
+  joystick (overlay)      action btn (overlay)
+```
+
+- **Joystick** and **action button** live in the `TouchInputProvider` overlay (DOM elements with `pointerEvents: 'auto'` on a `pointerEvents: 'none'` container).
+- **🎒 / 📜 buttons** live in the HUD's `#inv-preview` element — a flex row that also shows inventory item slots. Items expand leftward from the 🎒 button. Clicking 🎒 opens inventory, clicking 📜 opens quest log (via event delegation in `Game.ts`).
+- The **action button** is only visible when the player is near an interactable entity. `Game.ts` calls `touchProvider.setInteractVisible()` with the label from `InteractionSystem.nearestInteractLabel`.
+- On touch-only devices (`pointer: coarse` + `hover: none`), keyboard-specific hints are hidden and touch-specific hints are shown via CSS classes `.keyboard-hint` / `.touch-hint`.
+- All tappable elements have `-webkit-tap-highlight-color: transparent` to suppress blue highlight.
 
 ---
 
@@ -442,7 +520,102 @@ SPAWN (transparent, non-solid)
 
 The NPC class (`src/entities/NPC.ts`) manages its own state machine (`WALKING → IDLE → SLEEPING`). Velocity is recomputed each frame to point at the target (seek steering), with an overshoot guard: `arrivalThreshold = max(0.1, stepSize)`.
 
-The `sleep()` method transitions an NPC to `NPCState.SLEEPING`: stops movement, disables interaction, and plays the `sleep` animation. Used for the dog after completing the bone quest. A floating "zzz" effect is rendered above sleeping NPCs in `Game.drawDogZzz()`.
+The `sleep()` method transitions an NPC to `NPCState.SLEEPING`: stops movement, disables interaction, and plays the `sleep` animation. Used for the dog after completing the bone quest. A floating "zzz" effect is rendered above sleeping NPCs by `GameplaySystem.drawDogZzz()`.
+
+---
+
+## System Architecture (Phase 4 Decomposition)
+
+The `Game.ts` orchestrator was decomposed into focused modules. Each module has a single responsibility and communicates through well-defined interfaces.
+
+### Module Dependency Graph
+
+```
+main.ts
+  └─> Game (core/Game.ts) — orchestrator (~450 lines)
+       ├─> ForestSceneSetup (scenes/) — entity spawning
+       ├─> InteractionSystem (systems/) — proximity + E-key dispatch
+       ├─> GameplaySystem (systems/) — gameplay update + draw logic
+       ├─> RenderOrchestrator (rendering/) — full render pipeline
+       ├─> [engine systems: Physics, Animation, Input, Camera, Renderer, PostProcess]
+       └─> [game states: PlayingState, DialogState, InventoryState, ...]
+```
+
+### Game.ts — Orchestrator
+
+`src/core/Game.ts` (~450 lines) is a thin coordinator that:
+
+- Creates and wires all systems in the constructor
+- Delegates scene setup to `ForestSceneSetup`
+- Runs the game loop (`start`, `stop`, `loop`)
+- In `_update`: calls systems in order (physics → NPC → animation → camera → gameplay → interaction)
+- In `_render`: handles input toggles, profile transitions, then delegates to `RenderOrchestrator`
+- Manages day/night profile state and lighting application
+- Handles `openDialog` and `openInventory` (UI state transitions)
+
+### InteractionSystem
+
+`src/systems/InteractionSystem.ts` (~78 lines) — proximity detection and interact dispatch.
+
+- Scans entities for interactables within `NPC_INTERACT_RADIUS` and `NPC_ONBOARD_RADIUS`
+- Tracks the nearest interactable (`nearestInteractId`) for marker rendering
+- Exposes `nearestInteractLabel` — the label of the nearest interactable entity, used by `Game.ts` to drive the touch contextual action button via `touchProvider.setInteractVisible()`
+- Shows/hides the "Press E" prompt with dynamic labels
+- Returns a typed `InteractionTarget` on interact action: `{ type: 'npc' | 'interactable' | 'campfire', entity }`. Game handles dispatch.
+
+### GameplaySystem
+
+`src/systems/GameplaySystem.ts` (~400 lines) — all game-specific update and draw logic.
+
+**Update methods** (called from `Game._update`):
+- `updateCollectibles(dt, playerX, playerY)` — auto-pickup, item preview trigger, entity removal
+- `updateCampfireInteractable(campfire, isNight)` — dynamic enable/disable based on inventory + quest state
+- `interactWithCampfire(campfire)` — consume sticks, trigger burst, schedule secret item
+- `updateTriggerZones()` — enter/exit event dispatch
+- `updatePendingEvents(dt)` — timer-based callback queue
+- `updateFloatingTexts(dt)` — float upward + fade
+- `updateOnboarding(dt, velocity)` — dismiss hint on first movement
+
+**Draw methods** (called from `RenderOrchestrator.render`):
+- `drawCampfireSparks(ctx, camera, campfire, fireOpacity)` — radial gradient sparks
+- `drawFloatingTexts(ctx)` — pickup feedback
+- `drawDogZzz(ctx, camera, elapsed)` — sleeping NPC zzz animation
+- `drawOnboardingHint(ctx, camera, elapsed, playerX, playerY)` — movement prompt
+
+**Utility**: `addFloatingText(text, col, row, life?, offsetY?)` — converts grid coords to screen coords and spawns a floating text particle.
+
+### ForestSceneSetup
+
+`src/scenes/ForestSceneSetup.ts` (~240 lines) — entity creation functions for the forest scene.
+
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `createPlayer(entityManager)` | `Player` | Sets up position, scale, animations, registers with EntityManager |
+| `createCampfire(entityManager)` | `Campfire` | Position, scale, burn animation |
+| `createDogNPC(entityManager)` | `NPC` | Walk/idle/sleep animations, dialog:close listener for sleep |
+| `createCollectibles(entityManager)` | — | Bones, stone |
+| `createStickPileInteractables(entityManager, tileMap, gameplaySystem)` | — | Press-E to collect, removes visual, floating text |
+| `createNoteInteractable(entityManager, noteUI)` | — | Press-E opens parchment overlay |
+| `registerPlayerAnimations(player)` | — | Direction-based walk/idle animations |
+
+### RenderOrchestrator
+
+`src/rendering/RenderOrchestrator.ts` (~520 lines) — the complete render pipeline.
+
+Receives per-frame state via `RenderFrameState` (elapsed, activeProfile, snowEnabled, nearestInteractId) and orchestrates:
+
+1. Tile/object/entity enqueuing → Renderer
+2. Ground layer flush
+3. Boundary effects (vignette, fog wisps — back pass)
+4. Blob shadows, glow effects
+5. Campfire sparks (via GameplaySystem)
+6. Object/entity layer flush (depth-sorted)
+7. Boundary effects (front pass)
+8. Snowfall
+9. Floating text, dog zzz, onboarding hint (via GameplaySystem)
+10. Debug grid overlay
+11. Post-process pass: lights (sky, window, campfire), occluders (objects, player, NPCs), height-fade, volumetric sprite shading
+12. Interaction markers: two-pass depth-aware rendering with player silhouette occlusion
 
 ---
 
@@ -516,7 +689,7 @@ The `lightMult` getter returns `_lightMult * lerp(1, peakLightMult, burstT)`, so
 
 ### Spark Particles
 
-Each spark has: position offset (`ox`, `oy`), velocity (`vx`, `vy`), `life`/`maxLife`, `radius`, `hue` (orange→yellow gradient). Rendered with a radial gradient glow + solid pixel in `Game.drawCampfireSparks()`.
+Each spark has: position offset (`ox`, `oy`), velocity (`vx`, `vy`), `life`/`maxLife`, `radius`, `hue` (orange→yellow gradient). Rendered with a radial gradient glow + solid pixel in `GameplaySystem.drawCampfireSparks()`.
 
 ---
 
@@ -567,20 +740,22 @@ Dialogs are registered at import time via `registerDialog(tree)` and looked up b
 | `ESC` | Close dialog at any time |
 | Mouse hover + click | Also supported |
 
-### ESC Close Behavior (All Modals)
+### Close Behavior (All Modals)
 
-All overlay panels are dismissible with `ESC`:
+All overlay panels are dismissible with `ESC` (desktop) or touch-specific controls:
 
-| Modal | ESC Handler |
-|-------|-------------|
-| Dialog | `DialogUI` keydown listener (immediate, with `stopPropagation`) |
-| Item Preview | `ItemPreviewUI` keydown listener (delayed 1 frame to avoid pickup key collision) |
-| Note | `NoteUI` keydown listener (Enter/Space/Escape) |
-| Inventory | `Game._update()` — `Action.PAUSE` check |
-| Quest Log | `Game._update()` — `Action.PAUSE` check |
-| Controls Help | `Game._update()` — `Action.PAUSE` check |
+| Modal | Desktop | Touch |
+|-------|---------|-------|
+| Dialog | `ESC` key (DialogUI keydown) | ✕ close button (`.dialog-close`) |
+| Item Preview | `ESC` key (ItemPreviewUI keydown, delayed 1 frame) | Tap overlay backdrop |
+| Note | `Enter`/`Space`/`ESC` (NoteUI keydown) | Tap overlay backdrop |
+| Inventory | `ESC` → `Action.PAUSE` in `handleInputToggles()` | ✕ close button (`.overlay-close`) |
+| Quest Log | `ESC` → `Action.PAUSE` in `handleInputToggles()` | ✕ close button (`.overlay-close`) |
+| Controls Help | `ESC` → `Action.PAUSE` in `handleInputToggles()` | N/A (keyboard-only overlay) |
 
-Priority when multiple panels are open: Inventory > Quest Log > Controls Help (checked in that order in `_update()`). Player movement is blocked while any of inventory, item preview, or note overlays are visible.
+`PAUSE` action cascade priority (when multiple panels open): Note > Item Preview > Inventory > Quest Log > Controls Help.
+
+Player movement is blocked while any of inventory, item preview, or note overlays are visible.
 
 ---
 
@@ -607,9 +782,22 @@ The visual paper sprite is a `WorldObject` in `TileMap` at `(2.1, 2.7)` with `an
 
 ---
 
-## Mobile Web Detection
+## Platform Detection
 
-`src/main.ts` checks for mobile platforms at boot using `navigator.userAgent` patterns and `navigator.maxTouchPoints` heuristics. If detected, a full-screen unsupported-platform message is shown and the game does not load.
+Touch support is detected in the `Game` constructor using `'ontouchstart' in window`, `navigator.maxTouchPoints`, and `matchMedia('(pointer: fine)')`. Based on these signals:
+
+- **Desktop**: only `KeyboardInputProvider` is created
+- **Touch-only** (phone/tablet): only `TouchInputProvider` is created; keyboard onboarding hint disabled (`gameplaySystem.onboardingHintActive = false`)
+- **Hybrid** (laptop with touchscreen): both providers are created and active simultaneously
+
+The game loads on all platforms — no mobile blocking. `Game.ts` stores a `touchProvider` reference (if present) to drive the contextual action button and pass `isTouch` to `RenderOrchestrator` for marker rendering.
+
+CSS media queries (`@media (pointer: coarse) and (hover: none)`) control platform-specific UI:
+- `.keyboard-hint` visible on desktop, hidden on touch
+- `.touch-hint` hidden on desktop, visible on touch
+- `.overlay-close` (✕ buttons) hidden on desktop, visible on touch
+- `#inv-preview` shows 🎒/📜 buttons on touch, hint text on desktop
+- `-webkit-tap-highlight-color: transparent` on `#game-container *` suppresses blue tap highlights
 
 ---
 
@@ -636,8 +824,14 @@ Interaction markers (pixel-art arrow + `[E]` badge) are rendered on a dedicated 
 ### Visibility Rules
 
 - Markers are hidden when any modal state is active (`stateManager.size > 1`).
-- The `[E]` badge only appears when the entity is the nearest interactable within `NPC_ONBOARD_RADIUS`.
+- The badge only appears when the entity is the nearest interactable within `NPC_ONBOARD_RADIUS`.
 - The arrow marker appears for all interactable entities within render distance.
+
+### Platform-Specific Badge
+
+- **Desktop**: Renders `[E]` text badge above the arrow.
+- **Touch**: Renders `🤚` emoji badge (white via `ctx.filter = 'brightness(0) invert(1)'`). Badge dimensions are dynamically calculated using `ctx.measureText()` with `actualBoundingBoxAscent`/`actualBoundingBoxDescent` to correctly size for emoji glyphs.
+- Badge is always positioned above the orange arrow with a gap of `4 * markerScale` pixels.
 
 ---
 
@@ -653,21 +847,30 @@ Interaction markers (pixel-art arrow + `[E]` badge) are rendered on a dedicated 
 
 ## HUD & Debug Panels
 
-`src/ui/HUD.ts` — manages three UI elements:
+`src/ui/HUD.ts` — manages HUD elements:
 
 | Panel | Default | Toggle | Content |
 |-------|---------|--------|---------|
 | **Debug info** (top-left) | Hidden | `U` key | Player position, direction, item count |
 | **Debug overlay** (top-right) | Hidden | `U` key | FPS, zoom, map size, object count |
 | **Quest HUD** (top-right) | Visible | `Q` key | Active quest objectives with progress |
+| **Inventory preview** (top-right, below quest HUD) | Visible when items exist (always on touch) | — | Item slots + 🎒 / 📜 buttons (touch only) |
 
-Debug panels (`U`) and quest HUD (`Q`) are independently togglable. Both are edge-triggered in `Game._render()`.
+Debug panels (`U`) and quest HUD (`Q`) are independently togglable. Both are edge-triggered in `Game._render()` via `handleInputToggles()`.
+
+### Inventory Preview (Touch)
+
+On touch devices, `#inv-preview` serves double duty — it displays inventory item icons *and* provides 🎒 (open inventory) and 📜 (open quest log) tap targets. The layout is a horizontal flex row: `[item slots...] [🎒] [📜]`, anchored to the top-right. Items expand leftward as the player collects them.
+
+On desktop, the 🎒 / 📜 buttons are hidden and only item slots + a keyboard hint (`I`) are shown.
+
+`Game.ts` attaches a delegated `click` listener to `#inv-preview` to distinguish clicks on `.inv-preview-bag` (opens inventory), `.inv-preview-questlog` (opens quest log), or item slots (opens inventory).
 
 ---
 
 ## Pending Events System
 
-A simple timer-based callback queue in `Game.ts`. Events are pushed with a `timer` (seconds) and a `callback`. Each frame, timers decrement; when expired, the callback fires and the event is removed.
+A simple timer-based callback queue managed by `GameplaySystem`. Events are pushed with a `timer` (seconds) and a `callback`. Each frame, timers decrement; when expired, the callback fires and the event is removed.
 
 Used for:
 - Delayed secret item spawn after campfire fire burst (1.5s delay)

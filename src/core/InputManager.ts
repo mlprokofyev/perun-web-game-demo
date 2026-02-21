@@ -1,4 +1,4 @@
-import { InputSystem } from '../systems/InputSystem';
+import type { InputProvider } from './InputProvider';
 
 /** Named game actions — decouple game logic from raw keycodes. */
 export enum Action {
@@ -44,53 +44,57 @@ export const DEFAULT_BINDINGS: KeyBindings = {
 };
 
 /**
- * Thin abstraction over InputSystem that maps raw key codes to named actions.
- * Game code should query InputManager instead of raw key codes.
+ * Aggregates one or more InputProviders behind a single API.
+ * All game code queries InputManager — never raw providers.
  */
 export class InputManager {
-  private bindings: KeyBindings;
+  private providers: InputProvider[];
 
-  constructor(
-    private input: InputSystem,
-    bindings?: Partial<KeyBindings>,
-  ) {
-    this.bindings = { ...DEFAULT_BINDINGS, ...bindings };
+  constructor(providers: InputProvider[]) {
+    this.providers = providers;
   }
 
-  /** Is the given action currently held down? */
+  /** Is the given action currently held down (any provider)? */
   isActionDown(action: Action): boolean {
-    const codes = this.bindings[action];
-    for (const code of codes) {
-      if (this.input.isDown(code)) return true;
+    for (const p of this.providers) {
+      if (p.isActionActive(action)) return true;
     }
     return false;
   }
 
-  /** Normalized movement vector derived from MOVE_* actions. */
+  /** Normalized movement vector — takes the provider with the largest magnitude. */
   getMovementVector(): { x: number; y: number } {
-    let x = 0;
-    let y = 0;
-    if (this.isActionDown(Action.MOVE_UP))    y -= 1;
-    if (this.isActionDown(Action.MOVE_DOWN))  y += 1;
-    if (this.isActionDown(Action.MOVE_LEFT))  x -= 1;
-    if (this.isActionDown(Action.MOVE_RIGHT)) x += 1;
-    const len = Math.sqrt(x * x + y * y);
-    if (len > 0) { x /= len; y /= len; }
-    return { x, y };
+    let best = { x: 0, y: 0 };
+    let bestLen = 0;
+    for (const p of this.providers) {
+      const v = p.getMovementVector();
+      const len = v.x * v.x + v.y * v.y;
+      if (len > bestLen) {
+        best = v;
+        bestLen = len;
+      }
+    }
+    return best;
   }
 
-  /** Is the player trying to run? */
+  /** Is the player trying to run (any provider)? */
   isRunning(): boolean {
     return this.isActionDown(Action.RUN);
   }
 
-  /** Passthrough: get raw mouse screen position. */
+  /** Pointer position from the first provider that has one. */
   getMouseScreen(): { x: number; y: number } {
-    return this.input.getMouseScreen();
+    for (const p of this.providers) {
+      const pos = p.getPointerPosition();
+      if (pos.x !== 0 || pos.y !== 0) return pos;
+    }
+    return { x: 0, y: 0 };
   }
 
-  /** Rebind an action at runtime. */
-  rebind(action: Action, codes: string[]): void {
-    this.bindings[action] = codes;
+  /** Dispose all providers. */
+  dispose(): void {
+    for (const p of this.providers) {
+      p.dispose();
+    }
   }
 }

@@ -25,13 +25,17 @@ export class InventoryUI {
       container = document.createElement('div');
       container.id = 'inventory-container';
       container.innerHTML = `
-        <div class="inventory-box">
+        <div class="inventory-box" style="position:relative">
+          <button class="overlay-close" aria-label="Закрыть">✕</button>
           <div class="inventory-title">ИНВЕНТАРЬ</div>
           <div class="inventory-slots"></div>
           <div class="inventory-hint">
-            <span class="key">↑</span><span class="key">↓</span> выбор
-            <span class="key">Enter</span> осмотреть
-            <span class="key">ESC</span> закрыть
+            <span class="keyboard-hint">
+              <span class="key">↑</span><span class="key">↓</span> выбор
+              <span class="key">Enter</span> осмотреть
+              <span class="key">ESC</span> закрыть
+            </span>
+            <span class="touch-hint">Нажмите на предмет</span>
           </div>
         </div>
       `;
@@ -41,6 +45,9 @@ export class InventoryUI {
     this.container.style.display = 'none';
     this.slotsEl = container.querySelector('.inventory-slots')!;
     this.hintEl = container.querySelector('.inventory-hint')!;
+
+    const closeBtn = container.querySelector('.overlay-close')!;
+    closeBtn.addEventListener('click', () => this.onClose?.());
   }
 
   show(onInspect?: (itemId: string) => void, onClose?: () => void): void {
@@ -140,6 +147,15 @@ export class InventoryUI {
       name.className = 'inventory-name';
       name.textContent = def.name;
       el.appendChild(name);
+
+      const idx = this.slotItemIds.length - 1;
+      el.addEventListener('click', () => {
+        this.selectedIndex = idx;
+        this.highlightSelected();
+        if (this.slotItemIds[idx]) {
+          this.onInspect?.(this.slotItemIds[idx]);
+        }
+      });
 
       this.slotsEl.appendChild(el);
     }

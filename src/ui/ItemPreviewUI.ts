@@ -13,6 +13,7 @@ export class ItemPreviewUI {
   private nameEl: HTMLElement;
   private descEl: HTMLElement;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private clickHandler: (() => void) | null = null;
 
   constructor() {
     this.container = document.getElementById('item-preview-container')!;
@@ -73,7 +74,6 @@ export class ItemPreviewUI {
     // ── Show ──
     this.container.style.display = 'flex';
 
-    // ── Keyboard: Enter / Space / Escape to dismiss ──
     this.keydownHandler = (e: KeyboardEvent) => {
       if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
         e.preventDefault();
@@ -81,11 +81,13 @@ export class ItemPreviewUI {
         onClose();
       }
     };
-    // Small delay before attaching listener so the key that triggered
-    // the collectible pickup doesn't immediately close the preview.
+    this.clickHandler = () => onClose();
     requestAnimationFrame(() => {
       if (this.keydownHandler) {
         window.addEventListener('keydown', this.keydownHandler);
+      }
+      if (this.clickHandler) {
+        this.container.addEventListener('click', this.clickHandler);
       }
     });
   }
@@ -104,6 +106,10 @@ export class ItemPreviewUI {
     if (this.keydownHandler) {
       window.removeEventListener('keydown', this.keydownHandler);
       this.keydownHandler = null;
+    }
+    if (this.clickHandler) {
+      this.container.removeEventListener('click', this.clickHandler);
+      this.clickHandler = null;
     }
   }
 }

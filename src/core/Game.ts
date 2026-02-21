@@ -2,7 +2,9 @@ import { Config } from './Config';
 import { Camera } from '../rendering/Camera';
 import { Renderer } from '../rendering/Renderer';
 import { PostProcessPipeline } from '../rendering/PostProcessPipeline';
-import { InputSystem } from '../systems/InputSystem';
+import { KeyboardInputProvider } from '../systems/KeyboardInputProvider';
+import { TouchInputProvider } from '../systems/TouchInputProvider';
+import type { InputProvider } from './InputProvider';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { AnimationSystem } from '../systems/AnimationSystem';
 import { NPC } from '../entities/NPC';
@@ -49,8 +51,8 @@ export class Game {
   private camera: Camera;
   private renderer: Renderer;
   private postProcess: PostProcessPipeline;
-  private input: InputSystem;
   private inputManager: InputManager;
+  private touchProvider: TouchInputProvider | null = null;
   private physics: PhysicsSystem;
   private animationSystem: AnimationSystem;
   private entityManager: EntityManager;
@@ -131,8 +133,19 @@ export class Game {
     );
 
     // ── Input ─────────────────────────────────────────────────
-    this.input = new InputSystem(this.renderer.canvas, this.camera);
-    this.inputManager = new InputManager(this.input);
+    const providers: InputProvider[] = [];
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const hasFinePointer = matchMedia('(pointer: fine)').matches;
+
+    if (!hasTouch || hasFinePointer) {
+      providers.push(new KeyboardInputProvider(this.renderer.canvas, this.camera));
+    }
+    if (hasTouch) {
+      this.touchProvider = new TouchInputProvider(container, this.camera);
+      providers.push(this.touchProvider);
+    }
+
+    this.inputManager = new InputManager(providers);
 
     // ── Core systems ──────────────────────────────────────────
     this.physics = new PhysicsSystem(tileMap);
@@ -148,6 +161,23 @@ export class Game {
     this.itemPreviewUI = new ItemPreviewUI();
     this.noteUI = new NoteUI();
     const interactPrompt = document.getElementById('interact-prompt')!;
+
+    document.getElementById('inv-preview')?.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.inv-preview-questlog')) {
+        if (this.questLogUI.visible) {
+          this.questLogUI.hide();
+        } else {
+          this.inventoryUI.hide();
+          this.controlsHelpUI.hide();
+          this.questLogUI.show();
+        }
+        return;
+      }
+      if (!this.inventoryUI.visible && !this.itemPreviewUI.visible && !this.noteUI.visible) {
+        this.openInventory();
+      }
+    });
 
     // ── State manager ─────────────────────────────────────────
     this.stateManager = new GameStateManager();
@@ -166,6 +196,9 @@ export class Game {
       this.stateManager,
       this.itemPreviewUI,
     );
+    if (this.touchProvider) {
+      this.gameplaySystem.onboardingHintActive = false;
+    }
 
     // ── Scene setup ───────────────────────────────────────────
     this.player = createPlayer(this.entityManager);
@@ -208,6 +241,7 @@ export class Game {
       markerCanvas,
       markerCtx,
       gameplaySystem: this.gameplaySystem,
+      isTouch: this.touchProvider !== null,
     });
 
     // ── Start ─────────────────────────────────────────────────
@@ -281,6 +315,10 @@ export class Game {
       this.player.transform.x,
       this.player.transform.y,
     );
+    if (this.touchProvider) {
+      const label = this.interactionSystem.nearestInteractLabel;
+      this.touchProvider.setInteractVisible(label !== null, label ?? undefined);
+    }
     if (interaction) {
       switch (interaction.type) {
         case 'npc': this.openDialog(interaction.entity); break;
@@ -362,8 +400,12 @@ export class Game {
 
     const escDown = this.inputManager.isActionDown(Action.PAUSE);
     if (escDown) {
-      if (this.inventoryUI.visible || this.itemPreviewUI.visible || this.noteUI.visible) {
-        // handled by InventoryUI / ItemPreviewUI / NoteUI keydown listeners
+      if (this.noteUI.visible) {
+        this.noteUI.hide();
+      } else if (this.itemPreviewUI.visible) {
+        this.itemPreviewUI.hide();
+      } else if (this.inventoryUI.visible) {
+        this.inventoryUI.hide();
       } else if (this.questLogUI.visible) {
         this.questLogUI.hide();
       } else if (this.controlsHelpUI.visible) {

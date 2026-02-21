@@ -145,16 +145,14 @@ export class HUD {
 
   private updateInvPreview(): void {
     const slots = inventory.getSlots();
-    if (slots.length === 0) {
-      this.invPreviewEl.style.display = 'none';
-      return;
-    }
+    const isEmpty = slots.length === 0;
 
-    // Position below quest HUD (use offsetTop/offsetHeight — both share same parent)
+    this.invPreviewEl.classList.toggle('inv-preview-empty', isEmpty);
+
     if (this.questHudEl.style.display !== 'none' && this.questHudEl.offsetHeight > 0) {
       this.invPreviewEl.style.top = `${this.questHudEl.offsetTop + this.questHudEl.offsetHeight + 6}px`;
     } else {
-      this.invPreviewEl.style.top = '14px';
+      this.invPreviewEl.style.top = '';
     }
 
     if (!this.invDirty) {
@@ -163,24 +161,31 @@ export class HUD {
     }
     this.invDirty = false;
 
-    let itemsHtml = '<div class="inv-preview-items">';
-    for (const slot of slots) {
-      const def = getItemDef(slot.itemId);
-      if (!def) continue;
+    let html = '';
 
-      const iconUrl = this.getIconDataUrl(def.iconAssetId);
-      const iconHtml = iconUrl
-        ? `<img src="${iconUrl}" width="20" height="20" class="inv-preview-icon">`
-        : `<span class="inv-preview-icon-fallback">${def.name[0]}</span>`;
+    if (!isEmpty) {
+      html += '<div class="inv-preview-items">';
+      for (const slot of slots) {
+        const def = getItemDef(slot.itemId);
+        if (!def) continue;
 
-      const countStr = slot.count > 1 ? `<span class="inv-preview-count">×${slot.count}</span>` : '';
-      itemsHtml += `<div class="inv-preview-slot" title="${def.name}">${iconHtml}${countStr}</div>`;
+        const iconUrl = this.getIconDataUrl(def.iconAssetId);
+        const iconHtml = iconUrl
+          ? `<img src="${iconUrl}" width="20" height="20" class="inv-preview-icon">`
+          : `<span class="inv-preview-icon-fallback">${def.name[0]}</span>`;
+
+        const countStr = slot.count > 1 ? `<span class="inv-preview-count">×${slot.count}</span>` : '';
+        html += `<div class="inv-preview-slot" title="${def.name}">${iconHtml}${countStr}</div>`;
+      }
+      html += '</div>';
     }
-    itemsHtml += '</div>';
 
-    this.invPreviewEl.innerHTML = itemsHtml +
-      '<div class="inv-preview-hint"><span class="inv-preview-key">I</span> — инвентарь</div>';
-    this.invPreviewEl.style.display = 'block';
+    html += '<div class="inv-preview-bag">🎒</div>';
+    html += '<div class="inv-preview-questlog">📜</div>';
+    html += '<div class="inv-preview-hint"><span class="inv-preview-key">I</span> — инвентарь</div>';
+
+    this.invPreviewEl.innerHTML = html;
+    this.invPreviewEl.style.display = '';
   }
 
   private getIconDataUrl(assetId: string): string | null {
