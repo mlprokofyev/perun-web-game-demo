@@ -209,7 +209,7 @@ Animation keys use the format {state}_{direction} where state is idle or walk an
    ```
    Asset ID format: char_{state}_{direction}.
 
-4. **Wire the animation** in src/core/Game.ts, in the animation registration block:
+4. **Wire the animation** in `src/scenes/ForestSceneSetup.ts`, in `registerPlayerAnimations()`:
    ```typescript
    const walkDef: AnimationDef = {
      assetId: 'char_walk_south',
@@ -261,7 +261,7 @@ MY_NPC_FADE_DURATION: 2.0,
 
 ### 3. Create the NPC Instance
 
-In Game.ts, create an NPC with the NPC class:
+In the scene setup file (e.g., `src/scenes/ForestSceneSetup.ts`), create an NPC with the NPC class:
 
 ```typescript
 import { NPC, NPCOptions } from '../entities/NPC';
@@ -438,9 +438,9 @@ assetLoader.registerCanvas('collectible_my_item', makeCollectibleSprite('#FF0000
 
 Collectibles are world entities that the player picks up by walking near them (auto-pickup).
 
-### 1. Spawn in Game.ts
+### 1. Spawn in scene setup
 
-In the `spawnCollectibles()` method:
+In `src/scenes/ForestSceneSetup.ts` (or a new scene file), add the collectible definition to the `createCollectibles()` function:
 
 ```typescript
 const c = new Collectible('collect_my_item', {
@@ -509,7 +509,7 @@ In `src/quests/QuestDef.ts`, add to the `registerQuests()` call:
 
 ### 2. Start the Quest
 
-In Game.ts constructor or via dialog `onSelect`:
+In the scene setup (e.g., `Game.ts` constructor) or via dialog `onSelect`:
 
 ```typescript
 questTracker.startQuest('q_my_quest');

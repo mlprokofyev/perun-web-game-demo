@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Door to Young Perun</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,6 +20,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #game-container *, #game-container *::before, #game-container *::after {
+      -webkit-tap-highlight-color: transparent;
     }
     canvas {
       image-rendering: pixelated;
@@ -105,7 +112,6 @@
       position: absolute;
       top: 14px;
       right: 14px;
-      margin-top: 0;
       font-family: monospace;
       font-size: 11px;
       color: #c8c0a0;
@@ -149,6 +155,11 @@
       font-size: 11px;
       color: #d0c8a0;
     }
+    /* 🎒 / 📜 buttons — hidden on desktop */
+    .inv-preview-bag,
+    .inv-preview-questlog {
+      display: none;
+    }
     .inv-preview-hint {
       font-size: 10px;
       color: #908870;
@@ -163,6 +174,10 @@
       font-size: 10px;
       color: #c8c0a0;
       line-height: 16px;
+    }
+    /* Desktop: hide entirely when empty */
+    #inv-preview.inv-preview-empty {
+      display: none !important;
     }
     #controls-hint {
       position: absolute;
@@ -191,6 +206,93 @@
       font-size: 10px;
       line-height: 1.5;
       color: rgba(200, 190, 160, 0.7);
+    }
+
+    /* ── Touch / keyboard hint swap ──────────────────────── */
+    .touch-hint { display: none; }
+    @media (pointer: coarse) and (hover: none) {
+      #controls-hint { display: none !important; }
+      #interact-prompt { display: none !important; }
+      .keyboard-hint { display: none !important; }
+      .touch-hint { display: inline !important; }
+      #back-to-hub {
+        z-index: 60;
+        font-size: 14px;
+        padding: 10px 16px;
+        border-radius: 8px;
+      }
+      .inv-preview-hint { display: none !important; }
+      #inv-preview {
+        display: flex !important;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 0;
+      }
+      #inv-preview.inv-preview-empty {
+        display: flex !important;
+      }
+      .inv-preview-items {
+        display: flex;
+        gap: 4px;
+        flex-wrap: nowrap;
+        margin-bottom: 0;
+      }
+      .inv-preview-bag,
+      .inv-preview-questlog {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: rgba(20, 18, 14, 0.55);
+        border: 1.5px solid rgba(180, 170, 140, 0.25);
+        font-size: 20px;
+        flex-shrink: 0;
+        transition: transform 0.08s, opacity 0.08s;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .inv-preview-bag:active,
+      .inv-preview-questlog:active {
+        transform: scale(0.9);
+        opacity: 1;
+      }
+      .inv-preview-slot {
+        background: rgba(20, 18, 14, 0.55);
+        border-color: rgba(180, 170, 140, 0.2);
+        padding: 4px 6px;
+        border-radius: 6px;
+        -webkit-tap-highlight-color: transparent;
+      }
+    }
+
+    /* Close button used by overlays on touch */
+    .overlay-close {
+      position: absolute;
+      top: 10px; right: 14px;
+      width: 36px; height: 36px;
+      border: none; background: none;
+      color: rgba(200, 190, 160, 0.6);
+      font-size: 22px;
+      cursor: pointer;
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 5;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .overlay-close:hover,
+    .overlay-close:active {
+      background: rgba(200, 190, 160, 0.12);
+      color: rgba(200, 190, 160, 0.9);
+    }
+    @media (pointer: coarse) and (hover: none) {
+      .overlay-close { display: flex; }
     }
 
     /* ── Controls help overlay ─────────────────────────── */
@@ -350,6 +452,7 @@
       pointer-events: auto;
     }
     .dialog-box {
+      position: relative;
       width: 100%;
       max-width: 680px;
       background: rgba(8, 10, 18, 0.94);
@@ -814,13 +917,15 @@
     <!-- Dialog overlay (shown during conversation) -->
     <div id="dialog-container">
       <div class="dialog-box">
+        <button class="overlay-close dialog-close" aria-label="Закрыть">✕</button>
         <div class="dialog-speaker"></div>
         <div class="dialog-text"></div>
         <ul class="dialog-choices"></ul>
         <div class="dialog-controls">
-          <span><span class="key">↑</span><span class="key">↓</span> выбор</span>
-          <span><span class="key">Enter</span> подтвердить</span>
-          <span><span class="key">ESC</span> закрыть</span>
+          <span class="keyboard-hint"><span class="key">↑</span><span class="key">↓</span> выбор</span>
+          <span class="keyboard-hint"><span class="key">Enter</span> подтвердить</span>
+          <span class="keyboard-hint"><span class="key">ESC</span> закрыть</span>
+          <span class="touch-hint">Нажмите на ответ</span>
         </div>
       </div>
     </div>
@@ -833,7 +938,8 @@
         <div class="item-preview-name"></div>
         <div class="item-preview-desc"></div>
         <div class="item-preview-hint">
-          Нажмите <span class="key">Enter</span> или <span class="key">ESC</span> чтобы продолжить
+          <span class="keyboard-hint">Нажмите <span class="key">Enter</span> или <span class="key">ESC</span> чтобы продолжить</span>
+          <span class="touch-hint">Нажмите чтобы продолжить</span>
         </div>
       </div>
     </div>

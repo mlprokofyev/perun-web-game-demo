@@ -14,6 +14,7 @@ export type InteractionTarget =
 export class InteractionSystem {
   private interactPrev = false;
   nearestInteractId: string | null = null;
+  nearestInteractLabel: string | null = null;
 
   constructor(
     private entityManager: EntityManager,
@@ -52,9 +53,11 @@ export class InteractionSystem {
 
     if (nearest) {
       const label = nearest.interactLabel || 'действовать';
+      this.nearestInteractLabel = label;
       this.interactPrompt.innerHTML = `Нажмите <span class="key">E</span> — ${label}`;
       this.interactPrompt.style.display = '';
     } else {
+      this.nearestInteractLabel = null;
       this.interactPrompt.style.display = 'none';
     }
 

@@ -5,6 +5,7 @@
 export class NoteUI {
   private container: HTMLElement;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private clickHandler: (() => void) | null = null;
 
   constructor() {
     let container = document.getElementById('note-container');
@@ -21,7 +22,8 @@ export class NoteUI {
             <p class="note-signature">– Миша</p>
           </div>
           <div class="note-hint">
-            Нажмите <span class="key">Enter</span> или <span class="key">ESC</span> чтобы закрыть
+            <span class="keyboard-hint">Нажмите <span class="key">Enter</span> или <span class="key">ESC</span> чтобы закрыть</span>
+            <span class="touch-hint">Нажмите чтобы закрыть</span>
           </div>
         </div>
       `;
@@ -32,7 +34,7 @@ export class NoteUI {
   }
 
   show(onClose: () => void): void {
-    this.removeKeyListener();
+    this.removeListeners();
     this.container.style.display = 'flex';
 
     this.keydownHandler = (e: KeyboardEvent) => {
@@ -42,26 +44,34 @@ export class NoteUI {
         onClose();
       }
     };
+    this.clickHandler = () => onClose();
     requestAnimationFrame(() => {
       if (this.keydownHandler) {
         window.addEventListener('keydown', this.keydownHandler);
+      }
+      if (this.clickHandler) {
+        this.container.addEventListener('click', this.clickHandler);
       }
     });
   }
 
   hide(): void {
     this.container.style.display = 'none';
-    this.removeKeyListener();
+    this.removeListeners();
   }
 
   get visible(): boolean {
     return this.container.style.display !== 'none';
   }
 
-  private removeKeyListener(): void {
+  private removeListeners(): void {
     if (this.keydownHandler) {
       window.removeEventListener('keydown', this.keydownHandler);
       this.keydownHandler = null;
+    }
+    if (this.clickHandler) {
+      this.container.removeEventListener('click', this.clickHandler);
+      this.clickHandler = null;
     }
   }
 }

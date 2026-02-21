@@ -45,15 +45,17 @@ Canvas 2D (Renderer.ts)              WebGL2 overlay (PostProcessPipeline.ts)
 | 2 | Ground tiles | `Renderer.ts` | Enqueued to ground layer, flushed with Z-sort |
 | 3 | Ground-layer objects | `Renderer.ts` | Objects with `groundLayer: true` (e.g., `obj_campfire`), always below player |
 | 4–5 | Back fog | `FogEffect.ts` | Radial vignette + edge gradients + wisps, dimmed by `BOUNDARY_FOG_BACK_MULT` |
-| 6 | Blob shadows | `Game.ts` | Soft ellipses under entities that have `blobShadow` configured |
-| 7 | Campfire sparks | `Game.ts` | Particle system, drawn before object layer so player covers them. Alpha scaled by `fireOpacity`. |
+| 6 | Blob shadows | `RenderOrchestrator.ts` | Soft ellipses under entities that have `blobShadow` configured |
+| 7 | Campfire sparks | `GameplaySystem.ts` | Particle system, drawn before object layer so player covers them. Alpha scaled by `fireOpacity`. |
 | 8 | Object layer | `Renderer.ts` | Static objects + entities, depth-sorted by `(col+row)`. Supports rotation. |
 | 9–10 | Front fog | `FogEffect.ts` | Bottom/right edges, rendered over objects |
-| 11 | Floating text | `Game.ts` | "+1" / item name particles. World-to-screen projection, rise + fade animation. |
+| 11 | Floating text | `GameplaySystem.ts` | "+1" / item name particles. World-to-screen projection, rise + fade animation. |
 | 12 | Snowfall | `SnowfallEffect.ts` | 3D-projected particles with parallax depth. Gated by snow toggle. |
-| 13 | Debug grid | `Game.ts` | Optional, hold `G` |
+| 13 | Debug grid | `RenderOrchestrator.ts` | Optional, hold `G` |
 | 14 | Post-process | `PostProcessPipeline.ts` | WebGL2 full-screen quad with lighting shader |
-| 15 | DOM overlays | `Game.ts` / `DialogUI.ts` / `ItemPreviewUI.ts` / `ControlsHelpUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, controls help, debug panels, markers). HUD/debug panels use semi-transparent dark backgrounds for readability in both day and night modes. |
+| 15 | Markers | `RenderOrchestrator.ts` | Interaction markers on a separate canvas layer (above post-process, below DOM). Two-pass depth-aware rendering with player silhouette occlusion. Platform-aware badge: `[E]` on desktop, `🤚` emoji (white via canvas filter) on touch. Badge size responsive to text via `measureText`. Badge positioned above arrow with consistent gap. |
+| 16 | DOM overlays | `DialogUI.ts` / `InventoryUI.ts` / `ItemPreviewUI.ts` / `ControlsHelpUI.ts` | HTML elements above both canvases (dialog, inventory, quest log, item preview, HUD, controls help, debug panels). HUD/debug panels use semi-transparent dark backgrounds for readability in both day and night modes. Touch overlays include ✕ close buttons and tap-to-dismiss behavior. |
+| 17 | Touch overlay | `TouchInputProvider.ts` | DOM layer for virtual joystick (bottom-left) and contextual action button (bottom-right). Root overlay `pointerEvents: none` with `auto` on controls. Above DOM UI (`z-index: 50`). |
 
 ### Z-Sorting
 
@@ -217,7 +219,7 @@ new FireLightEffect({
 });
 ```
 
-The effect runs in `Game._update()`. Output values are used to modulate the campfire's `addLight()` call.
+The effect runs during the render pass in `RenderOrchestrator.setupLights()`. Output values are used to modulate the campfire's `addLight()` call.
 
 ---
 
@@ -374,7 +376,7 @@ Soft elliptical contact shadows drawn on the ground layer beneath each entity th
 | `ry` | Vertical radius (squashed for isometric) |
 | `opacity` | Shadow darkness (0–1) |
 
-Rendered in `Game._render()` before the object layer flush. The player, dog NPC, and campfire have blob shadows configured.
+Rendered by `RenderOrchestrator` before the object layer flush. The player, dog NPC, and campfire have blob shadows configured.
 
 ---
 

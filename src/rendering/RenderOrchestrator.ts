@@ -39,6 +39,7 @@ export interface RenderDeps {
   markerCanvas: HTMLCanvasElement;
   markerCtx: CanvasRenderingContext2D;
   gameplaySystem: GameplaySystem;
+  isTouch: boolean;
 }
 
 export interface RenderFrameState {
@@ -62,6 +63,8 @@ export class RenderOrchestrator {
   private markerCanvas: HTMLCanvasElement;
   private markerCtx: CanvasRenderingContext2D;
   private gameplaySystem: GameplaySystem;
+  private markerLabel: string;
+  private markerIsEmoji: boolean;
 
   constructor(deps: RenderDeps) {
     this.renderer = deps.renderer;
@@ -77,6 +80,8 @@ export class RenderOrchestrator {
     this.markerCanvas = deps.markerCanvas;
     this.markerCtx = deps.markerCtx;
     this.gameplaySystem = deps.gameplaySystem;
+    this.markerIsEmoji = deps.isTouch;
+    this.markerLabel = deps.isTouch ? '🤚' : 'E';
   }
 
   render(dt: number, state: RenderFrameState): void {
@@ -492,22 +497,38 @@ export class RenderOrchestrator {
       ctx.save();
       ctx.globalAlpha = pulse;
 
+      const label = this.markerLabel;
       const fontSize = 11;
       ctx.font = `bold ${fontSize}px monospace`;
-      const tm = ctx.measureText('E');
+      const tm = ctx.measureText(label);
       const padX = 6;
-      const padY = 2;
-      const bw = tm.width + padX * 2;
-      const bh = fontSize + padY * 2;
+      const padY = 4;
+      const textH = (tm.actualBoundingBoxAscent ?? fontSize * 0.8)
+                   + (tm.actualBoundingBoxDescent ?? fontSize * 0.2);
+      const bw = Math.max(tm.width, textH) + padX * 2;
+      const bh = textH + padY * 2;
       const bx = scr.x - bw / 2;
-      const by = markerTop - 20 * markerScale;
+      const gap = 4 * markerScale;
+      const by = markerTop - gap - bh;
 
       ctx.fillStyle = 'rgba(8, 10, 18, 0.72)';
-      ctx.fillRect(bx, by, bw, bh);
+      const r = 3;
+      ctx.beginPath();
+      ctx.moveTo(bx + r, by);
+      ctx.lineTo(bx + bw - r, by);
+      ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+      ctx.lineTo(bx + bw, by + bh - r);
+      ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+      ctx.lineTo(bx + r, by + bh);
+      ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+      ctx.lineTo(bx, by + r);
+      ctx.quadraticCurveTo(bx, by, bx + r, by);
+      ctx.closePath();
+      ctx.fill();
 
       ctx.strokeStyle = 'rgba(200, 170, 100, 0.3)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      ctx.stroke();
 
       ctx.fillStyle = 'rgba(240, 232, 192, 0.85)';
       ctx.textAlign = 'center';
@@ -515,7 +536,14 @@ export class RenderOrchestrator {
       ctx.shadowColor = 'rgba(0,0,0,0.9)';
       ctx.shadowBlur = 2;
       ctx.shadowOffsetY = 1;
-      ctx.fillText('E', scr.x, by + bh / 2);
+      if (this.markerIsEmoji) {
+        ctx.shadowColor = 'transparent';
+        ctx.filter = 'brightness(0) invert(1)';
+      }
+      ctx.fillText(label, scr.x, by + bh / 2);
+      if (this.markerIsEmoji) {
+        ctx.filter = 'none';
+      }
 
       ctx.restore();
     }
