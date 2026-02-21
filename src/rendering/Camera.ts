@@ -17,6 +17,9 @@ export class Camera {
   private targetY: number = 0;
   private followSmoothing: number = 6; // higher = snappier
 
+  private targetZoom: number = Config.CAMERA_DEFAULT_ZOOM;
+  private zoomSmoothing: number = 3;
+
   setViewport(w: number, h: number): void {
     this.viewportW = w;
     this.viewportH = h;
@@ -38,6 +41,13 @@ export class Camera {
     const t = 1 - Math.exp(-this.followSmoothing * dt);
     this.x += (this.targetX - this.x) * t;
     this.y += (this.targetY - this.y) * t;
+
+    const zt = 1 - Math.exp(-this.zoomSmoothing * dt);
+    this.zoom += (this.targetZoom - this.zoom) * zt;
+  }
+
+  setTargetZoom(z: number): void {
+    this.targetZoom = Math.max(Config.CAMERA_ZOOM_MIN, Math.min(Config.CAMERA_ZOOM_MAX, z));
   }
 
   /** Convert world coords → screen coords (accounting for camera + zoom) */
@@ -56,11 +66,13 @@ export class Camera {
     };
   }
 
-  /** Clamp zoom and apply delta */
+  /** Clamp zoom and apply delta (instant — used by mouse wheel) */
   adjustZoom(delta: number): void {
-    this.zoom = Math.max(
+    const z = Math.max(
       Config.CAMERA_ZOOM_MIN,
       Math.min(Config.CAMERA_ZOOM_MAX, this.zoom + delta)
     );
+    this.zoom = z;
+    this.targetZoom = z;
   }
 }
