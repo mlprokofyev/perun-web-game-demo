@@ -218,6 +218,25 @@ export function createStickPileInteractables(
   }
 }
 
+export function createDoorInteractable(entityManager: EntityManager): void {
+  const obj = new InteractableObject('interact_door', {
+    col: 1.1,
+    row: 2.3,
+    label: 'дверь',
+    onInteract: () => {
+      eventBus.emit('dialog:request', { dialogId: 'door_mystery' });
+      return true;
+    },
+    radius: 0.6,
+    markerOffsetY: 40,
+  });
+  obj.interactable = inventory.has('pink_lighter');
+  eventBus.on('inventory:changed', () => {
+    obj.interactable = inventory.has('pink_lighter') && !obj.depleted;
+  });
+  entityManager.add(obj);
+}
+
 export function createNoteInteractable(
   entityManager: EntityManager,
   noteUI: NoteUI,

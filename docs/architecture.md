@@ -220,6 +220,7 @@ Generic invisible entity for press-E interactions on static world objects. Used 
 - **Stick piles** — collect sticks, removes TileMap visual, depletes interactable
 - **Campfire** — dynamically enabled when player has 2 sticks + quest active, consumes sticks, triggers fire burst + secret item
 - **Wall note** — opens parchment overlay (NoteUI), non-depleting (reusable)
+- **Door** — conditionally enabled after player picks up `pink_lighter`. Emits `dialog:request` to open the door dialog. Pink point light appears alongside it.
 
 Options: `label`, `onInteract` callback, `radius`, `markerOffsetY`, `oneShot` flag.
 
@@ -382,9 +383,11 @@ interface GameEvents {
   'trigger:exit':              { zoneId: string; entityId: string };
   'interaction:start':         { targetId: string };
   'interaction:end':           { targetId: string };
-  'dialog:open':               { dialogId: string; npcId: string };
+  'dialog:open':               { dialogId: string; npcId?: string };
+  'dialog:request':            { dialogId: string };
   'dialog:choice':             { dialogId: string; choiceIndex: number };
   'dialog:close':              { dialogId: string };
+  'door:reveal':               {};
   'item:collected':            { itemId: string; entityId: string };
   'inventory:changed':         { itemId: string; count: number; total: number };
   'collectible:pickup':        { collectibleId: string; itemId: string };
@@ -416,7 +419,7 @@ Three layers:
 ```
 InputProvider (interface)
   ├─ KeyboardInputProvider  ← desktop: keyboard + mouse wheel + mouse
-  └─ TouchInputProvider     ← touch: virtual joystick + buttons + pinch zoom
+  └─ TouchInputProvider     ← touch: virtual joystick + contextual action button
         ↓
 InputManager (aggregator)
   → isActionDown(action)     — OR across all providers (continuous hold)
@@ -430,7 +433,7 @@ InputManager (aggregator)
 
 2. **KeyboardInputProvider** (`src/systems/KeyboardInputProvider.ts`) — Desktop input. Tracks `keydown`/`keyup`/`mousemove`/`wheel` events. Maps `Action` enums to key codes via `KeyBindings`. Maintains `justPressed` set (non-repeat keydown only) for `consumeAction`. Uses `AbortController` for clean disposal.
 
-3. **TouchInputProvider** (`src/systems/TouchInputProvider.ts`) — Touch input. Virtual joystick (bottom-left, 130px, semi-transparent, run zone at 60% radius, border color feedback when running). Contextual action button (bottom-right, pill-shaped `🤚 {label}`, shown only near interactables via `setInteractVisible()`). Pinch-to-zoom (guarded by `hasTrackedTouch()` to prevent false triggers during simultaneous joystick + action button use). DOM overlay with `pointerEvents: 'none'` on root, `'auto'` on individual controls. Per-button `touchId` tracking. `pendingActions` set for `consumeAction`. Button hit-testing uses `getBoundingClientRect()` (not `elementFromPoint`). Safe-area-aware positioning via `env(safe-area-inset-bottom)`. Haptic feedback (`navigator.vibrate`). The 🎒/📜 buttons are part of the HUD (not the touch overlay).
+3. **TouchInputProvider** (`src/systems/TouchInputProvider.ts`) — Touch input. Virtual joystick (bottom-left, 130px, semi-transparent, run zone at 60% radius, border color feedback when running). Contextual action button (bottom-right, pill-shaped `🤚 {label}`, shown only near interactables via `setInteractVisible()`). No pinch-to-zoom. DOM overlay with `pointerEvents: 'none'` on root, `'auto'` on individual controls. Per-button `touchId` tracking. `pendingActions` set for `consumeAction`. Button hit-testing uses `getBoundingClientRect()` (not `elementFromPoint`). Safe-area-aware positioning via `env(safe-area-inset-bottom)`. Haptic feedback (`navigator.vibrate`). The 🎒/📜 buttons are part of the HUD (not the touch overlay).
 
 4. **InputManager** (`src/core/InputManager.ts`) — Aggregates `InputProvider[]`. Game code queries `InputManager` only — never raw providers.
 
@@ -459,9 +462,13 @@ In `Game` constructor, providers are selected based on device capabilities:
 | `CONTROLS_HELP` | `H` | — | Toggle controls help |
 | `TOGGLE_DEBUG` | `U` | — | Toggle debug panels |
 | `TOGGLE_QUEST_HUD` | `Q` | — | Toggle quest HUD |
-| Zoom | Mouse wheel | Pinch | Camera zoom |
+| Zoom | Mouse wheel | — | Camera zoom (desktop only) |
 
 Keyboard bindings can be changed at runtime via `keyboardProvider.rebind(Action, codes[])`.
+
+### Idle Zoom (Touch Only)
+
+When the touch-screen player is idle (no movement) for `CAMERA_IDLE_DELAY` seconds (default 1.5s), the camera smoothly zooms out to `CAMERA_IDLE_ZOOM` (0.8×) and the HUD fades out (quest tracker, inventory preview). When movement resumes, zoom returns to the standard value and the HUD fades back in. Managed by `Game.updateIdleZoom()`.
 
 ### Touch Controls Layout
 

@@ -133,6 +133,8 @@ This makes light pools appear elliptical (wider horizontally, compressed vertica
 |-------|----------|-------|----------|---------------|
 | **Sky light** | World offset from map center (profile-driven) | Night: cool blue / Day: neutral white | No flicker | Always on (position/color from profile) |
 | **Window light** | Grid `(1.0, 2.8)` elevated `46px` | Warm orange (1.0, 0.65, 0.25) | Candle-like flicker | Yes — `pointLightOpacity` |
+| **Window light 2** | Grid `(2.7, 1.4)` elevated `46px` | Warm orange (1.0, 0.65, 0.25) | Candle-like flicker | Yes — `pointLightOpacity` |
+| **Door light** | Grid `(1.1, 2.3)` elevated `60px` | Pink (1.0, 0.3, 0.6) | Candle-like flicker | Yes — `pointLightOpacity` + requires `pink_lighter` in inventory |
 | **Campfire light** | Grid `(2.5, 4.4)` elevated `25px` | Orange-yellow, modulated by `FireLightEffect` | Breath + wobble + crackle. Radius and intensity scale with `Campfire.lightMult` (varies by fed state + burst envelope). | Yes — `fireOpacity` |
 
 Limits: up to **16 point lights** and **32 occluders** per frame (GLSL array sizes).
@@ -287,7 +289,10 @@ _render(dt):
         clearLights / clearOccluders / clearHeightFade
         addLight(skyLight)         // position + color from profile
         if pointLightOpacity > 0:
-            addLight(windowLight)  // intensity × pointLightOpacity
+            addLight(windowLight)      // intensity × pointLightOpacity
+            addLight(windowLight2)     // second window
+            if inventory.has('pink_lighter'):
+                addLight(doorLight)    // pink, conditional
         if fireOpacity > 0:
             addLight(campfireLight) // intensity × fireOpacity × flicker
         for each world object → addOccluder(position, radius, height)
@@ -408,6 +413,8 @@ Static constants in `Config.ts` (used as defaults / initial values):
 | `SKY_LIGHT_R/G/B` | 0.75 / 0.8 / 1.0 | Night sky light color |
 | `SKY_LIGHT_INTENSITY` | 0.55 | Night sky light brightness |
 | `WINDOW_LIGHT_*` | various | Window light position, color, flicker |
+| `WINDOW2_LIGHT_*` | various | Second window light position, color, flicker |
+| `DOOR_LIGHT_*` | various | Door light position, pink color, flicker (conditional on inventory) |
 | `CAMPFIRE_LIGHT_*` | various | Campfire light position, color, intensity, height offset |
 | `PLAYER_SHADOW_RADIUS` | 15 | Player occluder radius (asset px) |
 | `PLAYER_FOOT_OFFSET` | 18 | Sprite bottom → visual feet (asset px) |
