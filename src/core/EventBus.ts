@@ -18,8 +18,10 @@ export interface GameEvents {
   'interaction:start': { targetId: string };
   /** An interaction ended */
   'interaction:end': { targetId: string };
-  /** A dialog was opened */
-  'dialog:open': { dialogId: string; npcId: string };
+  /** Request to open a dialog by ID (from interactables, not NPCs) */
+  'dialog:request': { dialogId: string };
+  /** A dialog was opened (notification, not a trigger) */
+  'dialog:open': { dialogId: string; npcId?: string };
   /** A dialog choice was made */
   'dialog:choice': { dialogId: string; choiceIndex: number };
   /** A dialog was closed */
@@ -40,6 +42,8 @@ export interface GameEvents {
   'quest:started': { questId: string };
   /** A collectible was picked up (before inventory add) */
   'collectible:pickup': { collectibleId: string; itemId: string };
+  /** The mystery door was "opened" — show the coming-soon message */
+  'door:reveal': {};
 }
 
 // ─── Typed EventBus ─────────────────────────────────────────────

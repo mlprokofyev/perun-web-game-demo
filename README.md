@@ -1,6 +1,6 @@
 # Perun — Isometric Pixel Art Game
 
-A 2.5D isometric pixel art browser game built with TypeScript, HTML5 Canvas, and a custom engine. Features a WebGL2 post-processing pipeline for real-time lighting and shadows, day/night cycle, campfire with particle effects, NPC interactions, and a branching dialog system.
+A 2.5D isometric pixel art browser game built with TypeScript, HTML5 Canvas, and a custom engine. Features a WebGL2 post-processing pipeline for real-time lighting and shadows, day/night cycle, campfire with particle effects, NPC interactions, branching dialog system, and inventory-gated world mechanics (conditional door access with pink light).
 
 ## Quick Start
 
@@ -42,10 +42,10 @@ Open `http://localhost:5173` in your browser.
 | 🤚 action button (bottom-right) | Contextual interact — appears near NPCs/objects with dynamic label |
 | 🎒 button (top-right HUD) | Open inventory (merged with inventory preview) |
 | 📜 button (top-right HUD) | Toggle quest log |
-| Pinch | Zoom in/out |
 | Tap dialog choice | Select choice; ✕ button closes dialog |
 | Tap overlay backdrop | Dismiss item preview / note |
 | ✕ close button | Close inventory / quest log (visible on touch only) |
+| Idle zoom-out | After 1.5s idle, camera zooms to 0.8× and HUD fades out |
 
 Platform detection is automatic — desktop, touch-only, and hybrid (laptop + touchscreen) are all supported.
 
@@ -73,21 +73,21 @@ npm run preview   # Serve the production build locally
 │   ├── data/assets.json              Asset manifest (loaded at boot)
 │   └── sprites/
 │       ├── characters/               Player + NPC sprite sheets
-│       ├── objects/                   Houses, trees, stones, campfire, sticks, barrel, lighter, paper
+│       ├── objects/                   Houses, trees, stones, campfire, sticks, barrel, lighter, paper, door
 │       └── tiles/                    Isometric ground tiles
 ├── src/
 │   ├── main.ts                       Boot: load manifest → init Game
 │   ├── core/
-│   │   ├── Game.ts                   Orchestrator: loop, system wiring, toggles, profile transitions
+│   │   ├── Game.ts                   Orchestrator: loop, system wiring, toggles, idle zoom, door events
 │   │   ├── GameState.ts              State stack (Playing, Dialog, Inventory, etc.)
 │   │   ├── EntityManager.ts          Central entity registry + spatial queries
-│   │   ├── EventBus.ts               Typed pub/sub event system
+│   │   ├── EventBus.ts               Typed pub/sub event system (dialog:request, door:reveal)
 │   │   ├── InputManager.ts           Aggregates InputProvider[] — action queries, consumeAction, movement, pointer
 │   │   ├── InputProvider.ts          InputProvider interface (isActionActive, consumeAction, movement, pointer)
 │   │   ├── GameFlags.ts              Persistent game state (booleans, counters)
 │   │   ├── AssetLoader.ts            Image loader/cache
 │   │   ├── AssetManifest.ts          JSON manifest loader
-│   │   ├── Config.ts                 All constants centralized
+│   │   ├── Config.ts                 All constants centralized (camera, lights, door, idle zoom)
 │   │   └── Types.ts                  Shared types (Direction)
 │   ├── entities/
 │   │   ├── Entity.ts                 Base entity (optional components)
@@ -103,13 +103,13 @@ npm run preview   # Serve the production build locally
 │   │   ├── InteractionSystem.ts      Proximity detection, interact via consumeAction, prompt display
 │   │   ├── GameplaySystem.ts         Collectibles, campfire, floating text, triggers, onboarding
 │   │   ├── KeyboardInputProvider.ts  Desktop: keyboard + mouse + justPressed tracking for consumeAction
-│   │   ├── TouchInputProvider.ts     Touch: semi-transparent joystick, contextual action, pinch zoom, safe-area support
+│   │   ├── TouchInputProvider.ts     Touch: semi-transparent joystick, contextual action, safe-area support
 │   │   ├── PhysicsSystem.ts          Movement + tile/object/entity collision
 │   │   └── AnimationSystem.ts        Animation state updates
 │   ├── rendering/
 │   │   ├── RenderOrchestrator.ts     Full render pipeline: enqueue, flush, post-process, markers
 │   │   ├── Renderer.ts               Canvas draw queue, Z-sorting, layers, profile-driven effects
-│   │   ├── Camera.ts                 Viewport with smooth follow & zoom
+│   │   ├── Camera.ts                 Viewport with smooth follow & targetZoom lerp
 │   │   ├── IsometricUtils.ts         Coordinate conversion
 │   │   ├── PostProcessPipeline.ts    WebGL2 lighting & shadows
 │   │   ├── LightingProfile.ts        Day/night presets + lerp transition + fog/snow profiles
@@ -118,9 +118,9 @@ npm run preview   # Serve the production build locally
 │   │       ├── SnowfallEffect.ts     Particle snowfall (profile-driven opacity)
 │   │       └── FogEffect.ts          Decoupled vignette + animated fog wisps
 │   ├── scenes/
-│   │   └── ForestSceneSetup.ts       Entity spawning + animation registration for forest scene
+│   │   └── ForestSceneSetup.ts       Entity spawning + animation registration + door interactable
 │   ├── dialog/
-│   │   └── DialogData.ts             Dialog tree model + sample dialog
+│   │   └── DialogData.ts             Dialog tree model + dog dialog + door dialog
 │   ├── items/
 │   │   ├── ItemDef.ts                Item type registry (glowColor support)
 │   │   └── Inventory.ts              Player inventory singleton
@@ -138,9 +138,9 @@ npm run preview   # Serve the production build locally
 │   │   ├── InventoryUI.ts            Inventory list with keyboard nav + touch tap + close
 │   │   ├── ItemPreviewUI.ts          Full-size item preview with glow + tap-to-dismiss
 │   │   ├── QuestLogUI.ts             Quest log overlay + touch close
-│   │   ├── NoteUI.ts                 Parchment overlay for wall note + tap-to-dismiss
+│   │   ├── NoteUI.ts                 Parchment overlay with custom content support + tap-to-dismiss
 │   │   ├── ControlsHelpUI.ts         Controls help overlay (H key)
-│   │   └── HUD.ts                    Debug overlay + quest HUD + inventory preview (🎒/📜)
+│   │   └── HUD.ts                    Debug overlay + quest HUD + inventory preview (🎒/📜) + idle fade
 │   ├── world/
 │   │   ├── TileMap.ts                Tile grid + object storage
 │   │   └── WorldGenerator.ts         Map generation

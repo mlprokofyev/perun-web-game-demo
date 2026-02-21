@@ -108,5 +108,17 @@ export function generateWorld(): TileMap {
     ],
   });
 
+  // Door prop on the house wall — positive bias to render above house, below player
+  tileMap.addObject({
+    col: 1.1, row: 2.3,
+    assetId: 'obj_door',
+    width: 60, height: 140,
+    srcW: 90, srcH: 208,
+    anchorY: 0.92,
+    solid: false,
+    depthBias: 50,
+    shadowRadius: 0,
+  });
+
   return tileMap;
 }

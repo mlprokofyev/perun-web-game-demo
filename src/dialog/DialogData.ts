@@ -150,5 +150,29 @@ export const DOG_DIALOG: DialogTree = {
   },
 };
 
-// Auto-register the sample dialog
+// ─── Door dialog ────────────────────────────────────────────────
+
+export const DOOR_DIALOG: DialogTree = {
+  id: 'door_mystery',
+  startNodeId: 'start',
+  nodes: {
+    start: {
+      speaker: '???',
+      text: 'ЧТО ЗА ЧЕРТОВЩИНА?',
+      choices: [
+        {
+          text: 'Открыть дверь',
+          nextNodeId: null,
+          tag: 'action',
+          onSelect: () => {
+            eventBus.emit('door:reveal', {});
+          },
+        },
+      ],
+    },
+  },
+};
+
+// Auto-register dialogs
 registerDialog(DOG_DIALOG);
+registerDialog(DOOR_DIALOG);

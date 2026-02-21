@@ -28,7 +28,7 @@ export const Config = {
   PLAYER_START_COL: 1.4,
   PLAYER_START_ROW: 2.8,
   PLAYER_SPEED: 80,   // pixels per second in world space
-  PLAYER_RUN_MULT: 1.8,
+  PLAYER_RUN_MULT: 1.4,
 
   /** Camera */
   CAMERA_ZOOM_MIN: 0.8,
@@ -86,6 +86,28 @@ export const Config = {
   WINDOW_LIGHT_INTENSITY: 0.5,
   WINDOW_LIGHT_FLICKER: 0.3,
 
+  /** Door light — warm glow above the door, same style as window */
+  DOOR_LIGHT_COL: 1.05,
+  DOOR_LIGHT_ROW: 2.25,
+  DOOR_LIGHT_HEIGHT: 60,
+  DOOR_LIGHT_RADIUS: 160,
+  DOOR_LIGHT_R: 1.0,
+  DOOR_LIGHT_G: 0.3,
+  DOOR_LIGHT_B: 0.6,
+  DOOR_LIGHT_INTENSITY: 1.4,
+  DOOR_LIGHT_FLICKER: 1,
+
+  /** Second window light on the house side */
+  WINDOW2_LIGHT_COL: 2.7,
+  WINDOW2_LIGHT_ROW: 1.4,
+  WINDOW2_LIGHT_HEIGHT: 46,
+  WINDOW2_LIGHT_RADIUS: 214,
+  WINDOW2_LIGHT_R: 1.0,
+  WINDOW2_LIGHT_G: 0.65,
+  WINDOW2_LIGHT_B: 0.25,
+  WINDOW2_LIGHT_INTENSITY: 0.5,
+  WINDOW2_LIGHT_FLICKER: 0.3,
+
   /** Player shadow-casting radius in asset pixels */
   PLAYER_SHADOW_RADIUS: 15,
 
@@ -133,15 +155,15 @@ export const Config = {
 
   /** Snowfall weather effect — particles live in 3D world space */
   SNOW_ENABLED: true,
-  SNOW_PARTICLE_COUNT: 1800,     // total snowflakes across the map
+  SNOW_PARTICLE_COUNT: 3000,     // total snowflakes across the map
   SNOW_FALL_SPEED: 40,          // vertical fall speed (world px/s)
   SNOW_WIND_SPEED: 50,          // lateral wind drift in world px/s (positive = screen-right)
   SNOW_MIN_SIZE: 1.0,           // smallest flake screen radius (px, zoom-independent)
   SNOW_MAX_SIZE: 4,             // largest flake screen radius (px)
   SNOW_OPACITY: 0.85,           // peak flake opacity (0-1)
   SNOW_WOBBLE_SPEED: 1.8,       // horizontal sine-wobble frequency (rad/s)
-  SNOW_WOBBLE_AMP: 25,          // wobble amplitude in world px
-  SNOW_DEPTH_LAYERS: 10,         // number of parallax depth layers (1=flat, 3-5=rich depth)
+  SNOW_WOBBLE_AMP: 26,          // wobble amplitude in world px
+  SNOW_DEPTH_LAYERS: 12,         // number of parallax depth layers (1=flat, 3-5=rich depth)
   SNOW_MAX_HEIGHT: 500,         // max height above ground plane (world px)
   SNOW_SPAWN_PADDING: 4,        // extra grid cells beyond map edges for flake spawning
 

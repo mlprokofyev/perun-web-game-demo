@@ -44,6 +44,7 @@ import {
   createDogNPC,
   createCollectibles,
   createStickPileInteractables,
+  createDoorInteractable,
   createNoteInteractable,
 } from '../scenes/ForestSceneSetup';
 
@@ -224,7 +225,31 @@ export class Game {
 
     createCollectibles(this.entityManager);
     createStickPileInteractables(this.entityManager, this.tileMap, this.gameplaySystem);
+    createDoorInteractable(this.entityManager);
     createNoteInteractable(this.entityManager, this.noteUI);
+
+    eventBus.on('dialog:request', ({ dialogId }) => {
+      const tree = getDialogTree(dialogId);
+      if (!tree) return;
+      this.interactionSystem.hidePrompt();
+      const dialogState = new DialogState(tree, this.dialogUI, () => {
+        this.stateManager.pop();
+      });
+      this.stateManager.push(dialogState);
+    });
+
+    eventBus.on('door:reveal', () => {
+      this.noteUI.show(() => { this.noteUI.hide(); },
+        `<div class="note-title">🚪</div>
+         <div class="note-body">
+           <p>Что находится за этой дверью? Вы узнаете чуть позже, она в разработке. Предлагаю относиться к этому, как к сериалу: в каждой серии будет что-то новенькое, но не всё сразу!</p>
+           <p><strong>Продолжение следует...</strong></p>
+         </div>
+         <div class="note-hint">
+           <span class="keyboard-hint">Нажмите <span class="key">Enter</span> или <span class="key">ESC</span> чтобы закрыть</span>
+           <span class="touch-hint">Нажмите чтобы закрыть</span>
+         </div>`);
+    });
 
     // ── Quest tracker ─────────────────────────────────────────
     questTracker.init();

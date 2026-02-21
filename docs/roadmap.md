@@ -196,6 +196,25 @@ All steps were pure refactors — zero behavior changes. TypeScript compilation 
 
 ---
 
+## Phase 5c — Idle Zoom, Door, Loading Screen ✅
+
+> **Goal:** Touch idle zoom, door prop + interaction + conditional light, loading screen redesign.
+
+| Step | Task | Status | Result |
+|------|------|--------|--------|
+| 5c.1 | **Remove pinch-to-zoom on touch** | ✅ Done | Removed all pinch detection logic from `TouchInputProvider`. Eliminates accidental zoom during joystick use. Desktop mouse-wheel zoom unaffected. |
+| 5c.2 | **Touch idle zoom** | ✅ Done | After `CAMERA_IDLE_DELAY` (1.5s) of no movement, camera smoothly zooms to `CAMERA_IDLE_ZOOM` (0.8×). HUD fades out (quest tracker, inventory preview). Joystick + doors link remain visible. Movement resumes standard zoom. `Camera.setTargetZoom()` + `zoomSmoothing` lerp. |
+| 5c.3 | **Fix desktop zoom rubber-band** | ✅ Done | `Camera.adjustZoom()` now updates `targetZoom` alongside `zoom` to prevent smooth lerp pulling zoom back to idle value. |
+| 5c.4 | **Add door prop** | ✅ Done | `obj_door` asset at `(1.1, 2.3)` in `WorldGenerator`. `depthBias: 50` + insertion order ensures it renders above house but below player. |
+| 5c.5 | **Door + window lights** | ✅ Done | Pink point light above door (`DOOR_LIGHT_*` config). Second window light at `(2.7, 1.4)` (`WINDOW2_LIGHT_*` config). Both have flicker. |
+| 5c.6 | **Door interactable** | ✅ Done | `InteractableObject` in `ForestSceneSetup`. Emits `dialog:request` → `Game.ts` listener pushes `DialogState`. Door dialog: "ЧТО ЗА ЧЕРТОВЩИНА?" with "[открыть]" choice → `door:reveal` event → "coming soon" overlay via `NoteUI`. |
+| 5c.7 | **Conditional door access** | ✅ Done | Door `interactable` flag + door light only active after player has `pink_lighter` in inventory. Listens to `inventory:changed`. |
+| 5c.8 | **dialog:request / dialog:open split** | ✅ Done | Fixed infinite recursion: interactables emit `dialog:request`, `Game.ts` handles it and pushes `DialogState`. `dialog:open` is notification-only (emitted by `DialogState.onEnter`). |
+| 5c.9 | **NoteUI custom content** | ✅ Done | `NoteUI.show()` accepts optional `customHtml` parameter for arbitrary full-screen overlays. |
+| 5c.10 | **Loading screen redesign** | ✅ Done | Black background, `Press Start 2P` pixel font, "Door 1." title + "Загрузка..." text centered. "(← Doors)" link uses pixel font, `z-index: 10000` to stay above loading overlay. Controls hint removed. |
+
+---
+
 ## Next Up: Phase 6 — Dependency Injection
 
 > **Goal:** Eliminate module-level singletons. Prerequisite for engine extraction and testability.
@@ -423,11 +442,11 @@ src/
 
 | File | Lines | Notes |
 |------|-------|-------|
-| core/Game.ts | ~495 | **Phase 4 + 5b.** Thin orchestrator: loop, system wiring, input toggles, day/night profile transitions. Stores `TouchInputProvider` reference for contextual action button. Delegates update to InteractionSystem + GameplaySystem, render to RenderOrchestrator. Event delegation on `#inv-preview` for 🎒/📜 clicks. |
+| core/Game.ts | ~554 | **Phase 4 + 5b + 5c.** Thin orchestrator: loop, system wiring, input toggles, day/night profile transitions. Stores `TouchInputProvider` reference for contextual action button. Idle zoom management (`updateIdleZoom`). Handles `dialog:request` and `door:reveal` events. Delegates update to InteractionSystem + GameplaySystem, render to RenderOrchestrator. Event delegation on `#inv-preview` for 🎒/📜 clicks. |
 | systems/InteractionSystem.ts | ~77 | **Phase 4 + 5b.** Proximity detection, interact dispatch via `consumeAction(Action.INTERACT)`. Returns typed `InteractionTarget`. Exposes `nearestInteractLabel` for contextual action button. |
 | systems/GameplaySystem.ts | ~400 | **New (Phase 4).** Collectibles, campfire interaction, floating text, pending events, trigger zones, onboarding. Draw methods for sparks, zzz, hint. |
 | rendering/RenderOrchestrator.ts | ~551 | **Phase 4 + 5b.** Full render pipeline: enqueue, flush, post-process lights/occluders/volumetric, two-pass interaction markers. Touch-aware marker rendering: 🤚 emoji (white via canvas filter) with responsive badge sizing via `measureText`. |
-| scenes/ForestSceneSetup.ts | ~240 | **New (Phase 4).** Entity spawning functions for forest scene (player, campfire, dog, collectibles, interactables). |
+| scenes/ForestSceneSetup.ts | ~259 | **Phase 4 + 5c.** Entity spawning functions for forest scene (player, campfire, dog, collectibles, interactables, door). `createDoorInteractable()` conditionally enabled via `inventory:changed`. |
 | states/PlayingState.ts | ~15 | **New (Phase 4).** Default game state delegating to Game._update/_render. |
 | core/GameState.ts | ~108 | State stack with transparent/blocking flags |
 | core/EntityManager.ts | ~71 | Central registry with spatial queries |
@@ -435,8 +454,8 @@ src/
 | core/InputProvider.ts | ~20 | **New (Phase 5).** Interface: `isActionActive`, `consumeAction`, `getMovementVector`, `getPointerPosition`, `dispose`. |
 | core/InputManager.ts | ~100 | **Refactored (Phase 5 + 5b).** Aggregates `InputProvider[]` — OR for actions, highest-magnitude for movement, first-valid for pointer. `consumeAction()` iterates all providers. Bindings moved to `KeyboardInputProvider`. |
 | systems/KeyboardInputProvider.ts | ~100 | **New (Phase 5 + 5b).** Desktop keyboard + mouse wheel + mouse position. `justPressed` set for `consumeAction`. Replaces old `InputSystem.ts`. AbortController for cleanup. |
-| systems/TouchInputProvider.ts | ~397 | **Phase 5 + 5b.** Virtual joystick (bottom-left, semi-transparent, run zone at 60%), contextual action button (pill-shaped 🤚 + label, bottom-right), pinch-to-zoom (guarded by `hasTrackedTouch`). Per-button `touchId` tracking. `pendingActions` set for `consumeAction`. `getBoundingClientRect` hit-testing. `env(safe-area-inset-bottom)` positioning. Overlay `pointerEvents: none` with `auto` on controls only. Haptic feedback. `setInteractVisible()` for dynamic action button. |
-| core/Config.ts | ~188 | All constants centralized. Campfire + dog params (including DOG_SLEEP_SRC_W/H), NPC onboard radius, dog spawn delay |
+| systems/TouchInputProvider.ts | ~350 | **Phase 5 + 5b + 5c.** Virtual joystick (bottom-left, semi-transparent, run zone at 60%), contextual action button (pill-shaped 🤚 + label, bottom-right). No pinch-to-zoom (removed in 5c). Per-button `touchId` tracking. `pendingActions` set for `consumeAction`. `getBoundingClientRect` hit-testing. `env(safe-area-inset-bottom)` positioning. Overlay `pointerEvents: none` with `auto` on controls only. Haptic feedback. `setInteractVisible()` for dynamic action button. |
+| core/Config.ts | ~212 | **Phase 5c.** All constants centralized. Campfire + dog params, NPC onboard radius, dog spawn delay. `CAMERA_IDLE_ZOOM`, `CAMERA_IDLE_DELAY`. `DOOR_LIGHT_*` + `WINDOW2_LIGHT_*` configs. |
 | core/GameFlags.ts | ~90 | Persistent game state singleton (booleans, counters, strings) |
 | core/AssetManifest.ts | ~26 | JSON manifest loader. BASE_URL-aware for sub-path deployment. |
 | core/AssetLoader.ts | ~56 | Image loader/cache |
@@ -454,18 +473,18 @@ src/
 | items/Inventory.ts | ~138 | Add/remove/has/count, source tracking, EventBus integration |
 | quests/QuestDef.ts | ~80 | Quest + objective data model, registry. 2 quests defined. Titles/descriptions/objectives in Russian. |
 | quests/QuestTracker.ts | ~208 | Runtime quest state, event listeners, checkFlags() |
-| dialog/DialogData.ts | ~155 | Data model + registry + quest-integrated dog dialog (condition/onSelect, bone consumption, dynamic choices based on quest state, "waiting" node). All dialog text in Russian. |
+| dialog/DialogData.ts | ~179 | **Phase 5c.** Data model + registry + quest-integrated dog dialog + door dialog (`door_mystery`). Door dialog emits `door:reveal` on choice. All dialog text in Russian. |
 | states/DialogState.ts | ~107 | Transparent, blocks update. Filters choices by condition. |
 | states/InventoryState.ts | ~29 | Transparent overlay for inventory |
 | states/QuestLogState.ts | ~29 | Transparent overlay for quest log |
 | states/ItemPreviewState.ts | ~43 | Transparent overlay for item discovery dialog |
 | ui/DialogUI.ts | ~141 | **Phase 5b.** Arrow/Enter/ESC navigation, mouse, hints. ✕ close button (visible on touch). Platform-specific hint text (keyboard-hint / touch-hint). |
 | ui/ControlsHelpUI.ts | ~53 | HTML overlay listing all controls by category. Toggle with H key. All text in Russian. |
-| ui/HUD.ts | ~217 | **Phase 5b.** Debug panels (toggleable with U), quest HUD tracker (toggleable with Q). `updateInvPreview()` renders 🎒 + 📜 buttons inline with item slots as a flex row on touch. Always visible on touch (even when empty). |
+| ui/HUD.ts | ~230 | **Phase 5b + 5c.** Debug panels (toggleable with U), quest HUD tracker (toggleable with Q). `updateInvPreview()` renders 🎒 + 📜 buttons inline with item slots as a flex row on touch. Always visible on touch (even when empty). `setIdleMode()` fades quest HUD + inventory preview during touch idle zoom. |
 | ui/InventoryUI.ts | ~228 | **Phase 5b.** HTML overlay: item icons with glow gradients, names, counts. Keyboard navigation (↑/↓/W/S), inspect action (Enter/Space). ✕ close button, tap-on-slot for touch. Labels in Russian. |
 | ui/QuestLogUI.ts | ~120 | **Phase 5b.** HTML overlay: active/completed quests + objectives. ✕ close button for touch. Labels in Russian. |
 | ui/ItemPreviewUI.ts | ~115 | **Phase 5b.** HTML overlay: item preview with 120×120 canvas, radial glow gradient, optional header. Tap-to-dismiss on touch. Labels in Russian. |
-| ui/NoteUI.ts | ~77 | **Phase 5b.** Parchment overlay for developer wall note. Tap-to-dismiss on touch. Reusable. |
+| ui/NoteUI.ts | ~90 | **Phase 5b + 5c.** Parchment overlay with optional custom HTML content. Tap-to-dismiss on touch. Reusable. Used for wall note and door "coming soon" overlay. |
 | systems/PhysicsSystem.ts | ~92 | Entity-vs-entity collision, overlap escape |
 | systems/AnimationSystem.ts | ~20 | Null-checks optional animController |
 | ~~systems/InputSystem.ts~~ | — | **Deleted (Phase 5).** Replaced by `KeyboardInputProvider`. |
@@ -475,10 +494,10 @@ src/
 | rendering/effects/FireLightEffect.ts | ~143 | Breath + wobble + crackle flicker |
 | rendering/effects/SnowfallEffect.ts | ~179 | Extracted from Renderer, profile-driven opacity |
 | rendering/effects/FogEffect.ts | ~329 | Decoupled vignette + animated wisps, profile-driven color/opacity/blend |
-| rendering/Camera.ts | ~66 | Unchanged |
+| rendering/Camera.ts | ~80 | **Phase 5c.** `targetZoom` + `zoomSmoothing` lerp for smooth zoom transitions. `setTargetZoom()` API for idle zoom. `adjustZoom()` syncs both `zoom` and `targetZoom`. |
 | rendering/IsometricUtils.ts | ~30 | Unchanged |
 | world/TileMap.ts | ~117 | WorldObject with rotation, groundLayer, shadowHeight, depthBias, removeObjectById |
-| world/WorldGenerator.ts | ~112 | Campfire, sticks, trees, house, barrel, wall note. Hardcoded positions. depthBias for wall decorations. |
+| world/WorldGenerator.ts | ~125 | **Phase 5c.** Campfire, sticks, trees, house, barrel, wall note, door. Hardcoded positions. depthBias for wall decorations and door. |
 | assets/ProceduralAssets.ts | ~890 | Campfire anim + item icons + world sprites (stick, bone, stone, ancient_ember, lighter) + interact_marker + note_paper sprites |
 | main.ts | ~43 | **Updated (Phase 5).** Removed `isMobile()` block and mobile warning. Boot sequence only: procedural assets → manifest → world → Game. Platform detection moved to `Game` constructor. |
-| index.html | ~949 | **Phase 5b + 7 target.** Dialog, inventory, quest log, item preview, note parchment, controls help overlays. `lang="ru"`, all labels in Russian. Touch-specific CSS: `keyboard-hint`/`touch-hint` classes, `overlay-close` ✕ buttons, `#inv-preview` flex layout with 🎒/📜, `-webkit-tap-highlight-color: transparent`, `#back-to-hub` touch sizing. **Planned:** Extract CSS to separate files, move all DOM creation to TypeScript. Target: ~30 lines. |
+| index.html | ~965 | **Phase 5b + 5c + 7 target.** Dialog, inventory, quest log, item preview, note parchment, controls help overlays. `lang="ru"`, all labels in Russian. Touch-specific CSS: `keyboard-hint`/`touch-hint` classes, `overlay-close` ✕ buttons, `#inv-preview` flex layout with 🎒/📜, `-webkit-tap-highlight-color: transparent`, `#back-to-hub` touch sizing. Loading screen: black background, `Press Start 2P` pixel font, "Door 1." title + "Загрузка..." text. **Planned:** Extract CSS to separate files, move all DOM creation to TypeScript. Target: ~30 lines. |

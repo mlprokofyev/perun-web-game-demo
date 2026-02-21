@@ -10,6 +10,7 @@ import { isoToScreen } from './IsometricUtils';
 import { FireLightEffect } from './effects/FireLightEffect';
 import type { LightingProfile } from './LightingProfile';
 import { TileMap } from '../world/TileMap';
+import { inventory } from '../items/Inventory';
 import { Entity } from '../entities/Entity';
 import { Player } from '../entities/Player';
 import { Campfire } from '../entities/Campfire';
@@ -240,6 +241,44 @@ export class RenderOrchestrator {
         b: Config.WINDOW_LIGHT_B,
         intensity: Config.WINDOW_LIGHT_INTENSITY * p.pointLightOpacity,
         flicker: Config.WINDOW_LIGHT_FLICKER,
+      });
+    }
+
+    // Second window light
+    if (p.pointLightOpacity > 0.001) {
+      const win2World = isoToScreen(Config.WINDOW2_LIGHT_COL, Config.WINDOW2_LIGHT_ROW);
+      const win2Screen = cam.worldToScreen(
+        win2World.x,
+        win2World.y + Config.TILE_HEIGHT / 2 - Config.WINDOW2_LIGHT_HEIGHT,
+      );
+      this.postProcess.addLight({
+        x: win2Screen.x,
+        y: win2Screen.y,
+        radius: Config.WINDOW2_LIGHT_RADIUS * zoom,
+        r: Config.WINDOW2_LIGHT_R,
+        g: Config.WINDOW2_LIGHT_G,
+        b: Config.WINDOW2_LIGHT_B,
+        intensity: Config.WINDOW2_LIGHT_INTENSITY * p.pointLightOpacity,
+        flicker: Config.WINDOW2_LIGHT_FLICKER,
+      });
+    }
+
+    // Door light — only visible after player picks up the lighter
+    if (p.pointLightOpacity > 0.001 && inventory.has('pink_lighter')) {
+      const doorWorld = isoToScreen(Config.DOOR_LIGHT_COL, Config.DOOR_LIGHT_ROW);
+      const doorScreen = cam.worldToScreen(
+        doorWorld.x,
+        doorWorld.y + Config.TILE_HEIGHT / 2 - Config.DOOR_LIGHT_HEIGHT,
+      );
+      this.postProcess.addLight({
+        x: doorScreen.x,
+        y: doorScreen.y,
+        radius: Config.DOOR_LIGHT_RADIUS * zoom,
+        r: Config.DOOR_LIGHT_R,
+        g: Config.DOOR_LIGHT_G,
+        b: Config.DOOR_LIGHT_B,
+        intensity: Config.DOOR_LIGHT_INTENSITY * p.pointLightOpacity,
+        flicker: Config.DOOR_LIGHT_FLICKER,
       });
     }
 
