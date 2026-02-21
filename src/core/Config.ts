@@ -31,10 +31,12 @@ export const Config = {
   PLAYER_RUN_MULT: 1.8,
 
   /** Camera */
-  CAMERA_ZOOM_MIN: 0.85,
+  CAMERA_ZOOM_MIN: 0.8,
   CAMERA_ZOOM_MAX: 2,
   CAMERA_ZOOM_STEP: 0.25,
   CAMERA_DEFAULT_ZOOM: 1.0,
+  CAMERA_IDLE_ZOOM: 0.8,
+  CAMERA_IDLE_DELAY: 5,  // seconds of zero velocity before idle zoom kicks in
 
   /** World (reduced to keep approx same visual extent with larger tiles) */
   MAP_COLS: 6,

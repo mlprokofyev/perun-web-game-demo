@@ -1,5 +1,4 @@
 import { Config } from '../core/Config';
-import { Camera } from '../rendering/Camera';
 import { Action } from '../core/InputManager';
 import type { InputProvider } from '../core/InputProvider';
 
@@ -42,7 +41,7 @@ export class TouchInputProvider implements InputProvider {
   private pendingActions: Set<Action> = new Set();
   private buttons: ActionButton[] = [];
 
-  private pinchDist: number | null = null;
+
 
   private lastPointerX = 0;
   private lastPointerY = 0;
@@ -57,7 +56,6 @@ export class TouchInputProvider implements InputProvider {
 
   constructor(
     private container: HTMLElement,
-    private camera: Camera,
   ) {
     this.abort = new AbortController();
     const signal = this.abort.signal;
@@ -178,10 +176,6 @@ export class TouchInputProvider implements InputProvider {
         e.preventDefault();
       }
     }
-
-    if (e.touches.length === 2 && !this.hasTrackedTouch(e.touches)) {
-      this.pinchDist = this.getTouchDistance(e.touches[0], e.touches[1]);
-    }
   };
 
   private onTouchMove = (e: TouchEvent): void => {
@@ -197,13 +191,6 @@ export class TouchInputProvider implements InputProvider {
       this.lastPointerY = t.clientY;
     }
 
-    if (e.touches.length === 2 && this.pinchDist !== null) {
-      const newDist = this.getTouchDistance(e.touches[0], e.touches[1]);
-      const delta = (newDist - this.pinchDist) * 0.005;
-      this.camera.adjustZoom(delta);
-      this.pinchDist = newDist;
-      e.preventDefault();
-    }
   };
 
   private onTouchEnd = (e: TouchEvent): void => {
@@ -215,10 +202,6 @@ export class TouchInputProvider implements InputProvider {
       }
 
       this.handleButtonTouchEnd(t.identifier);
-    }
-
-    if (e.touches.length < 2) {
-      this.pinchDist = null;
     }
   };
 
@@ -370,24 +353,6 @@ export class TouchInputProvider implements InputProvider {
 
     this.buttons.push({ action, element: btn, touchId: null, releaseTimer: null });
     return btn;
-  }
-
-  /** True if any of the current touches belongs to joystick or a button. */
-  private hasTrackedTouch(touches: TouchList): boolean {
-    for (let i = 0; i < touches.length; i++) {
-      const id = touches[i].identifier;
-      if (id === this.joyTouchId) return true;
-      for (const btn of this.buttons) {
-        if (btn.touchId === id) return true;
-      }
-    }
-    return false;
-  }
-
-  private getTouchDistance(a: Touch, b: Touch): number {
-    const dx = a.clientX - b.clientX;
-    const dy = a.clientY - b.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
   }
 
   private haptic(): void {

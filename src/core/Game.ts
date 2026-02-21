@@ -78,6 +78,10 @@ export class Game {
   private elapsed: number = 0;
   private running: boolean = false;
 
+  /** Touch idle-zoom state */
+  private idleTimer = 0;
+  private isIdle = false;
+
   /** Toggle tracking (edge-triggered) */
   private lightTogglePrev = false;
   private snowTogglePrev = false;
@@ -141,7 +145,7 @@ export class Game {
       providers.push(new KeyboardInputProvider(this.renderer.canvas, this.camera));
     }
     if (hasTouch) {
-      this.touchProvider = new TouchInputProvider(container, this.camera);
+      this.touchProvider = new TouchInputProvider(container);
       providers.push(this.touchProvider);
     }
 
@@ -333,6 +337,35 @@ export class Game {
     this.gameplaySystem.updateFloatingTexts(dt);
 
     this.hud.update(dt, this.player, this.camera, this.tileMap);
+
+    if (this.touchProvider) {
+      this.updateIdleZoom(dt);
+    }
+  }
+
+  private updateIdleZoom(dt: number): void {
+    const v = this.player.velocity;
+    const moving = v && (Math.abs(v.vx) > 0.001 || Math.abs(v.vy) > 0.001);
+
+    if (moving) {
+      this.idleTimer = 0;
+      if (this.isIdle) {
+        this.isIdle = false;
+        this.camera.setTargetZoom(Config.CAMERA_DEFAULT_ZOOM);
+        this.hud.setIdleMode(false);
+        this.touchProvider!.setInteractVisible(false);
+      }
+      return;
+    }
+
+    if (!this.isIdle) {
+      this.idleTimer += dt;
+      if (this.idleTimer >= Config.CAMERA_IDLE_DELAY) {
+        this.isIdle = true;
+        this.camera.setTargetZoom(Config.CAMERA_IDLE_ZOOM);
+        this.hud.setIdleMode(true);
+      }
+    }
   }
 
   /** @internal — called by PlayingState */

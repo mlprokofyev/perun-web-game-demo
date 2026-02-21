@@ -20,6 +20,7 @@ export class HUD {
 
   private _debugVisible = false;
   private _questHudVisible = true;
+  private _idleMode = false;
 
   /** Cached icon data URLs keyed by asset id */
   private iconCache: Map<string, string> = new Map();
@@ -69,6 +70,16 @@ export class HUD {
     if (!v) {
       this.questHudEl.style.display = 'none';
     }
+  }
+
+  setIdleMode(idle: boolean): void {
+    if (idle === this._idleMode) return;
+    this._idleMode = idle;
+    const opacity = idle ? '0' : '1';
+    this.questHudEl.style.transition = 'opacity 0.6s';
+    this.invPreviewEl.style.transition = 'opacity 0.6s';
+    this.questHudEl.style.opacity = opacity;
+    this.invPreviewEl.style.opacity = opacity;
   }
 
   update(dt: number, player: Player, camera: Camera, tileMap: TileMap): void {
