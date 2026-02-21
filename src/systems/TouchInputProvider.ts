@@ -83,7 +83,7 @@ export class TouchInputProvider implements InputProvider {
     Object.assign(this.actionBtn.style, {
       position: 'absolute',
       right: `${BTN_MARGIN}px`,
-      bottom: `${BTN_MARGIN}px`,
+      bottom: `calc(${BTN_MARGIN}px + env(safe-area-inset-bottom, 0px))`,
       display: 'none',
       width: 'auto',
       height: 'auto',
@@ -267,9 +267,13 @@ export class TouchInputProvider implements InputProvider {
   // ── Buttons (per-touch-ID tracking) ────────────────────────
 
   private handleButtonTouchStart(touch: Touch): boolean {
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
     for (const btn of this.buttons) {
-      if (btn.element === el || btn.element.contains(el as Node)) {
+      const rect = btn.element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (
+        touch.clientX >= rect.left && touch.clientX <= rect.right &&
+        touch.clientY >= rect.top && touch.clientY <= rect.bottom
+      ) {
         btn.touchId = touch.identifier;
         this.activeActions.add(btn.action);
         btn.element.style.transform = 'scale(0.9)';
@@ -305,7 +309,7 @@ export class TouchInputProvider implements InputProvider {
     Object.assign(base.style, {
       position: 'absolute',
       left: `${JOY_MARGIN}px`,
-      bottom: `${JOY_MARGIN}px`,
+      bottom: `calc(${JOY_MARGIN}px + env(safe-area-inset-bottom, 0px))`,
       width: `${JOY_SIZE}px`,
       height: `${JOY_SIZE}px`,
       borderRadius: '50%',

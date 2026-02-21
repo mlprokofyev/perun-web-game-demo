@@ -25,7 +25,7 @@ export const Config = {
   CHAR_DRAW_H: 128,
 
   /** Player defaults */
-  PLAYER_START_COL: 1.1,
+  PLAYER_START_COL: 1.4,
   PLAYER_START_ROW: 2.8,
   PLAYER_SPEED: 80,   // pixels per second in world space
   PLAYER_RUN_MULT: 1.8,
