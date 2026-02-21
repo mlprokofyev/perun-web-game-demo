@@ -12,7 +12,6 @@ export type InteractionTarget =
   | { type: 'campfire'; entity: Campfire };
 
 export class InteractionSystem {
-  private interactPrev = false;
   nearestInteractId: string | null = null;
   nearestInteractLabel: string | null = null;
 
@@ -61,9 +60,9 @@ export class InteractionSystem {
       this.interactPrompt.style.display = 'none';
     }
 
-    const eDown = this.inputManager.isActionDown(Action.INTERACT);
+    const pressed = this.inputManager.consumeAction(Action.INTERACT);
     let result: InteractionTarget | null = null;
-    if (eDown && !this.interactPrev && nearest) {
+    if (pressed && nearest) {
       if (nearest instanceof NPC) {
         result = { type: 'npc', entity: nearest };
       } else if (nearest instanceof InteractableObject) {
@@ -72,7 +71,6 @@ export class InteractionSystem {
         result = { type: 'campfire', entity: nearest };
       }
     }
-    this.interactPrev = eDown;
     return result;
   }
 }

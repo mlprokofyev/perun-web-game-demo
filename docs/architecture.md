@@ -419,17 +419,18 @@ InputProvider (interface)
   └─ TouchInputProvider     ← touch: virtual joystick + buttons + pinch zoom
         ↓
 InputManager (aggregator)
-  → isActionDown(action)     — OR across all providers
+  → isActionDown(action)     — OR across all providers (continuous hold)
+  → consumeAction(action)    — one-shot press, cleared after read
   → getMovementVector()      — highest-magnitude provider wins
   → getMouseScreen()         — first non-zero pointer
   → isRunning()              — shorthand for RUN action
 ```
 
-1. **InputProvider** (`src/core/InputProvider.ts`) — Interface that all input sources implement: `isActionActive(action)`, `getMovementVector()`, `getPointerPosition()`, `dispose()`.
+1. **InputProvider** (`src/core/InputProvider.ts`) — Interface that all input sources implement: `isActionActive(action)`, `consumeAction(action)`, `getMovementVector()`, `getPointerPosition()`, `dispose()`. The `consumeAction` pattern records each button press as a one-shot flag that persists until consumed by game logic — eliminates timing-dependent edge detection.
 
-2. **KeyboardInputProvider** (`src/systems/KeyboardInputProvider.ts`) — Desktop input. Tracks `keydown`/`keyup`/`mousemove`/`wheel` events. Maps `Action` enums to key codes via `KeyBindings`. Uses `AbortController` for clean disposal.
+2. **KeyboardInputProvider** (`src/systems/KeyboardInputProvider.ts`) — Desktop input. Tracks `keydown`/`keyup`/`mousemove`/`wheel` events. Maps `Action` enums to key codes via `KeyBindings`. Maintains `justPressed` set (non-repeat keydown only) for `consumeAction`. Uses `AbortController` for clean disposal.
 
-3. **TouchInputProvider** (`src/systems/TouchInputProvider.ts`) — Touch input. Virtual joystick (bottom-left, 130px, run zone at 60% radius, border color feedback when running). Contextual action button (bottom-right, pill-shaped `🤚 {label}`, shown only near interactables via `setInteractVisible()`). Pinch-to-zoom. DOM overlay with `pointerEvents: 'none'` on root, `'auto'` on individual controls. Per-button `touchId` tracking. Haptic feedback (`navigator.vibrate`). The 🎒/📜 buttons are part of the HUD (not the touch overlay).
+3. **TouchInputProvider** (`src/systems/TouchInputProvider.ts`) — Touch input. Virtual joystick (bottom-left, 130px, semi-transparent, run zone at 60% radius, border color feedback when running). Contextual action button (bottom-right, pill-shaped `🤚 {label}`, shown only near interactables via `setInteractVisible()`). Pinch-to-zoom (guarded by `hasTrackedTouch()` to prevent false triggers during simultaneous joystick + action button use). DOM overlay with `pointerEvents: 'none'` on root, `'auto'` on individual controls. Per-button `touchId` tracking. `pendingActions` set for `consumeAction`. Button hit-testing uses `getBoundingClientRect()` (not `elementFromPoint`). Safe-area-aware positioning via `env(safe-area-inset-bottom)`. Haptic feedback (`navigator.vibrate`). The 🎒/📜 buttons are part of the HUD (not the touch overlay).
 
 4. **InputManager** (`src/core/InputManager.ts`) — Aggregates `InputProvider[]`. Game code queries `InputManager` only — never raw providers.
 

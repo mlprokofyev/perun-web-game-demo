@@ -10,6 +10,7 @@ import type { InputProvider } from '../core/InputProvider';
  */
 export class KeyboardInputProvider implements InputProvider {
   private keys: Set<string> = new Set();
+  private justPressed: Set<string> = new Set();
   private mouseX = 0;
   private mouseY = 0;
   private bindings: KeyBindings;
@@ -25,6 +26,7 @@ export class KeyboardInputProvider implements InputProvider {
     const signal = this.abort.signal;
 
     window.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (!e.repeat) this.justPressed.add(e.code);
       this.keys.add(e.code);
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
         e.preventDefault();
@@ -37,6 +39,7 @@ export class KeyboardInputProvider implements InputProvider {
 
     window.addEventListener('blur', () => {
       this.keys.clear();
+      this.justPressed.clear();
     }, { signal });
 
     canvas.addEventListener('mousemove', (e: MouseEvent) => {
@@ -55,6 +58,17 @@ export class KeyboardInputProvider implements InputProvider {
     const codes = this.bindings[action];
     for (const code of codes) {
       if (this.keys.has(code)) return true;
+    }
+    return false;
+  }
+
+  consumeAction(action: Action): boolean {
+    const codes = this.bindings[action];
+    for (const code of codes) {
+      if (this.justPressed.has(code)) {
+        this.justPressed.delete(code);
+        return true;
+      }
     }
     return false;
   }

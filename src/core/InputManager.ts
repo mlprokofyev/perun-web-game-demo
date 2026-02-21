@@ -62,6 +62,15 @@ export class InputManager {
     return false;
   }
 
+  /** True if the action was pressed since last consume (one-shot). Clears the flag. */
+  consumeAction(action: Action): boolean {
+    let consumed = false;
+    for (const p of this.providers) {
+      if (p.consumeAction(action)) consumed = true;
+    }
+    return consumed;
+  }
+
   /** Normalized movement vector — takes the provider with the largest magnitude. */
   getMovementVector(): { x: number; y: number } {
     let best = { x: 0, y: 0 };
